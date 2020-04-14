@@ -1,0 +1,851 @@
+---
+title: "Thera Bank - Loan Purchase Modeling"
+author: "Shiladri Sarkar"
+date: "11/23/2019"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+#  Project Objective:
+
+Thera Bank wants to increase its asset customers, Using the given dataset we need to create a model to identify the
+existing customers who are more likely to take up personl loan. This way Back is going to bring more loan business
+and in the process, earn more through the interest on loans.
+
+  1. Data Preparation: Basic EDA, Outlier, Summary, Relation between independent variables etc.
+  
+  2. Apply Alogorithm: Apply CART(Classification and REgression Tree) and Random forest algorithm and interpret the       results.
+  
+  3. Predict Personal Loan using other 12 independent variable.
+  
+  4. Model Performance: Comapre different performance parameter from both the model and interpret them.
+
+```{r echo=FALSE}
+##Setting Working directory and reading the input file.
+setwd("E:/BABI Study Materials/Project - 3")
+library(xlsx)
+data = read.xlsx("Thera Bank_Personal_Loan_Modelling-dataset-1.xlsx",2, header = TRUE)
+```
+
+#  External Library:
+
+    1. xlsx
+    
+    2. dplyr
+    
+    3. ggplot2
+    
+    4. reshape2
+    
+    5. scales
+    
+    6. caTools
+    
+    7. rpart
+    
+    8. rpart.plot
+    
+    9. rattle
+    
+    10. RColorBrewer
+    
+    11. randomForest
+    
+    12. RORC
+    
+    13. ineq
+    
+    14. data.table
+
+
+```{r include=FALSE}
+### Loading the required libraries
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(scales)
+library(caTools)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(RColorBrewer)
+library(randomForest)
+library(ROCR)
+library(ineq)
+library(data.table)
+```
+
+# 1. EDA - Basic data summary, Univariate, Bivariate analysis, graphs:
+
+### 1. Structure and summary  of given data:
+
+```{r echo=FALSE}
+str(data)
+summary(data)
+```
+      
+      1.1 Given dataset has 500 Observations and 14 variables.
+      
+      1.2 14 Variables are numeric (Later we need to change data type accordingly).
+      
+      1.3 Column ID is unique for all the observations.
+      
+      1.4 Variable age is continuous vairbale with minimum age 23 and maximum age is 67.
+      
+      1.5 Experience is also a continuous variable but there are some negative value present(Need to treat them).
+      
+      1.6 Zip Code is showing numeric but it should be categorical.
+      
+      1.7 Family member has 4 observations but there are 18 records with null value(Need to treat them).
+      
+      1.8 CCAvg (Avg Spending on credit card per month varies between 0 and 10.
+      
+      1.9 Education is a variable with 3 levels(1: Undergrad; 2: Graduate; 3: Advanced/Professional).
+      
+      1.10 Mortgage varies bwteen 0 and 635.
+      
+      1.11 Personal Loan,Securities Account, CD Account, Online, CreditCard variables have two level Yes and No            represented by 1 and 0.
+      
+      
+### 2. Column names in th egiven data set iis not code friendly .Lets update the column names to code friendly format.
+
+Before update:
+```{r echo=FALSE}
+colnames(data) # Column Names beforre update
+names(data)[2]="age_in_years"
+names(data)[3]="experience_in_years"
+names(data)[4]="income_in_K_month"
+names(data)[5]="zip_code"
+names(data)[6]="family_members"
+names(data)[10]="accepted_personal_loan" 
+names(data)[11]="securities_account"
+names(data)[12]="cd_account"
+names(data)[13]="online_Access"
+names(data)[14]="credit_card"
+
+```
+After Update:
+```{r echo=FALSE}
+colnames(data) # Column Names updated update
+```
+
+### 3. Identifying missing values.
+
+```{r echo=FALSE}
+anyNA(data)
+#colSums(is.na(data))
+apply(is.na(data), 2, which)
+```
+    
+    3.1 From above reult we can see that fmily_member column contains 18 null value(position/row numbers given).
+  
+    
+### 4. Lets Remove NA value column from data:
+
+
+```{r echo=FALSE}
+data = na.omit(data)
+anyNA(data)
+```
+    
+    4.1 After updating NA values with 0 we can see that there are no NA values(FALSE) in given dataset.
+    
+    
+### 5. Convert categorical variables to factor variable which are in Numeric and see the Structure and summaey of data.
+
+
+```{r echo=FALSE}
+data$zip_code = as.factor(data$zip_code)
+data$family_members = as.factor(data$family_members)
+data$Education = as.factor(data$Education)
+data$accepted_personal_loan = as.factor(data$accepted_personal_loan)
+data$securities_account = as.factor(data$securities_account)
+data$cd_account = as.factor(data$cd_account)
+data$online_Access = as.factor(data$online_Access)
+data$credit_card = as.factor(data$credit_card)
+str(data)
+summary(data)
+```
+
+    5.1 We can see that 8 Columans has been converted to factors.
+    
+    5.2 Out of 5000 only 480 people accepted personal loan.
+    
+    5.3 MOst people does not have credit card, securities coount and cd_sccount.
+    
+    5.4 More people have online access.
+    
+### 6. Negtive value treatment for experience values.
+
+```{r echo=FALSE}
+neg_exp = data %>% select(age_in_years,experience_in_years) %>% group_by(age_in_years)  %>% filter(experience_in_years < 0) %>% summarise(number_of_negexp_record = n())
+neg_exp
+```
+
+```{r echo=FALSE}
+ages = list(neg_exp$age_in_years)
+ages
+
+indexes = data %>% select(ID,experience_in_years) %>%  filter(experience_in_years < 0) 
+indexes = list(indexes$ID)
+indexes
+```
+    
+    6.1  We can see that there are 52 record with negative experience value and their age are 23,24,25,26,28,29
+    and most of them are belongs to 23,24 and 25 year age bracket.
+
+
+```{r echo=FALSE}
+pos_exp = data %>% select(age_in_years,experience_in_years) %>% group_by(age_in_years)  %>% filter(experience_in_years > 0) %>% summarise(means = round(mean(experience_in_years)))
+head(pos_exp)
+```
+```{r echo=FALSE}
+data$experience_in_years[data$experience_in_years<0] = 0
+data %>% select(age_in_years,experience_in_years) %>% group_by(age_in_years)  %>% filter(experience_in_years < 0) %>% summarise(number_of_negexp_record = n())
+```
+
+    6.2 We can see from good record that we dont have positive experience for group 23 and 24 and only one recort 
+    for 25 so we are not going to replace the negative value with positive mean.
+    
+    6.3 We replaced negatuve values with zero in experience column.
+    
+    6.4 After replacing them with zero we are not seeing any negative experience value.
+
+
+### 7. Lets plot visualize the data:
+
+    7.1 Checking for outlier in Continuous vairbale.
+
+```{r echo=FALSE, fig.height=6}
+ggplot(stack(data[-c(1,3,4,7,9)]),aes(x = ind,y = values, fill = ind)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Box Plot with outlier of all the continuous variables", x = "Variables", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+```
+
+    7.2 Among 5 continuous variables 3 variable income in months Customer average spending and MOrtgage has
+    outliers.
+    
+```{r echo=FALSE, fig.height=6}
+ggplot(stack(data[c(2)]),aes(x = values, fill = ind)) + geom_density() + theme(legend.position = "none") + labs(title = "Distribution of Age", x = "Varibles", y = "Values") + theme(plot.title = element_text(colour = "blue", face = "bold", hjust = 0.5)) + facet_wrap(~ind)
+```
+   
+    7.3 Age is equally distributed.
+
+```{r echo=FALSE, fig.height=6}
+ggplot(stack(data[c(3)]),aes(x = values, fill = ind)) + geom_density() + theme(legend.position = "none") + labs(title = "Distribution of experience", x = "Varibles", y = "Values") + theme(plot.title = element_text(colour = "blue", face = "bold", hjust = 0.5)) + facet_wrap(~ind)
+```
+    
+    7.4 Experience is rqually distributed.
+    
+```{r echo=FALSE, fig.height=6}
+ggplot(stack(data[c(4)]),aes(x = values, fill = ind)) + geom_density() + theme(legend.position = "none") + labs(title = "Distribution of income", x = "Varibles", y = "Values") + theme(plot.title = element_text(colour = "blue", face = "bold", hjust = 0.5)) + facet_wrap(~ind)
+```
+    
+    7.5 Distribution of income is right skewed.
+    
+```{r echo=FALSE, fig.height=6}
+ggplot(stack(data[c(7)]),aes(x = values, fill = ind)) + geom_density() + theme(legend.position = "none") + labs(title = "Distribution of Average Spending", x = "Varibles", y = "Values") + theme(plot.title = element_text(colour = "blue", face = "bold", hjust = 0.5)) + facet_wrap(~ind)
+```
+
+    7.6 Average spending is also right skewed.
+    
+```{r echo=FALSE, fig.height=6}
+ggplot(stack(data[c(9)]),aes(x = values, fill = ind)) + geom_density() + theme(legend.position = "none") + labs(title = "Distribution of MOrtgage", x = "Varibles", y = "Values") + theme(plot.title = element_text(colour = "blue", face = "bold", hjust = 0.5)) + facet_wrap(~ind)
+```
+
+    7.7 Mortgage is also distributed unevenly.
+    
+### 8. Multicollinearity check :
+
+```{r echo=FALSE}
+cormat = round(cor(data[,c(2,3,4,7,9)]),2)
+melted_cormat <- melt(cormat)
+
+get_upper_tri <- function(cormat){ cormat[lower.tri(cormat)]<- NA 
+return(cormat) }
+
+upper_tri <- get_upper_tri(cormat) 
+melted_cormat <- melt(upper_tri, na.rm = TRUE)
+
+ggplot(melted_cormat, aes(Var2, Var1, fill = value))+ 
+  geom_tile(color = "white")+ 
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Correlation") + theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1))+ coord_fixed() + geom_text(aes(Var2, Var1, label = value), color = "black", size = 4) + theme(
+    axis.title.x = element_blank(), axis.title.y = element_blank(), panel.grid.major = element_blank(), panel.border = element_blank(), panel.background = element_blank(), axis.ticks = element_blank(), legend.justification = c(1, 0), legend.position = c(0.6, 0.7), legend.direction = "horizontal")+ guides(fill = guide_colorbar(barwidth = 7, barheight = 1, title.position = "top", title.hjust = 0.5))
+  
+  
+  
+
+```
+
+    8.1 We can see that there are high correlation between age and experience, So we can remove one of the 
+    variable from our forther analysis.
+    
+    8.2 Income in month and average spending (CCAvg) also have good amount of correlation.
+    
+### 9. Distribution of cutomer by education quanlification,Family Member,Online Access,Having credit card, Deposit account, Savings Account:
+```{r echo=FALSE}
+ggplot(data,aes(x=data$Education,fill=data$Education)) +
+  geom_bar(stat = "count") +xlab("Education Level") + ylab("Number of Person") + ggtitle("Distribution of cutomer by education quanlification") + 
+  geom_text(aes(label = percent(round(..count../nrow(data),2))),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Education Level", labels = c("Undergrad","Graduate","Advanced/Professional")) +
+   theme(legend.position = "bottom")
+
+
+ggplot(data,aes(x=data$family_members,fill=data$family_members)) +
+  geom_bar(stat = "count") +xlab("Family Member") + ylab("Number of Person") + ggtitle("Distribution of cutomer by family size") + 
+  geom_text(aes(label = percent(round(..count../nrow(data),2))),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Family size") +
+   theme(legend.position = "bottom")
+
+
+ggplot(data,aes(x=data$online_Access,fill=data$online_Access)) +
+  geom_bar(stat = "count") +xlab("Online Access") + ylab("Number of Person") + ggtitle("Distribution of cutomer by online acccess") + 
+  geom_text(aes(label = percent(round(..count../nrow(data),2))),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Online Access",labels = c("No","Yes")) +
+   theme(legend.position = "bottom")
+
+
+ggplot(data,aes(x=data$credit_card,fill=data$credit_card)) +
+  geom_bar(stat = "count") +xlab("Having credit card") + ylab("Number of Person") + ggtitle("Distribution of cutomer by credit card") + 
+  geom_text(aes(label = percent(round(..count../nrow(data),2))),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Having credit card",labels = c("No","Yes")) +
+   theme(legend.position = "bottom")
+
+
+ggplot(data,aes(x=data$cd_account,fill=data$cd_account)) +
+  geom_bar(stat = "count") +xlab("Having deposit account") + ylab("Number of Person") + ggtitle("Distribution of cutomer by deposit account") + 
+  geom_text(aes(label = percent(round(..count../nrow(data),2))),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Having deposit account",labels = c("No","Yes")) +
+   theme(legend.position = "bottom")
+
+
+ggplot(data,aes(x=data$securities_account,fill=data$securities_account)) +
+  geom_bar(stat = "count") +xlab("Having Sevurities account") + ylab("Number of Person") + ggtitle("Distribution of cutomer by Securities account") + 
+  geom_text(aes(label = percent(round(..count../nrow(data),2))),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Having Securities account",labels = c("No","Yes")) +
+   theme(legend.position = "bottom")
+
+
+ggplot(data,aes(x=data$Education,fill=data$accepted_personal_loan)) +
+  geom_bar(stat = "count", position = "dodge") +xlab("Education Level") + ylab("Number of Person") + ggtitle("Loan and Education relationship") + 
+   scale_fill_discrete(name = "Education Level", labels = c("Didnot accept lona","Accepted Loan")) +
+   theme(legend.position = "bottom")
+
+ggplot(data,aes(x=data$family_members,fill=data$accepted_personal_loan)) +
+  geom_bar(stat = "count",position = "dodge") +xlab("Family Member") + ylab("Number of Person") + ggtitle("Distribution of Loan by family size") + 
+    scale_fill_discrete((name = "Family size") , labels = c("Didnot accept lona","Accepted Loan")) +
+   theme(legend.position = "bottom")
+```
+***oservations***
+
+    9.1 Education level are equally distributed with Undergraduate with 42%.
+    
+    9.2 Famiy Member also equally distributed.
+    
+    9.3 Majority of the people have oline access.
+    
+    9.4 Most of the people does not have credit card, deposit account and securities account.
+    
+    9.5 People who are more educated(Advance/Profession) has taken more personal laon.
+    
+    9.6 People with 4 family member has accepted more personal loan.
+    
+
+## Split the data into 70% (Train) and 30%(Test):
+
+*** we are going to remove column ID(Unique Identifier) and experience(as this has 99% correlation with Age)***
+
+```{r echo=FALSE}
+
+set.seed(3000)
+split = sample.split(data$accepted_personal_loan, SplitRatio=0.7)
+traindata = subset(data[c(-1,-3)], split==T)
+dim(traindata)
+testdata = subset(data[c(-1,-3)], split==F)
+dim(testdata)
+```
+
+    We can see that data has been split into 3488 train and 1494 test observation. Lets see the uniformity of
+    test and train data:
+    
+```{r}
+sum(traindata$accepted_personal_loan == '1')/nrow(traindata)
+sum(testdata$accepted_personal_loan == '1')/nrow(testdata)
+sum(data$accepted_personal_loan == '1')/nrow(data)
+```
+    
+    We can see that data has been splitted perfectly where accepted_personal_loan == '1' is 0.096% for all three dataset(actual,train.test)
+
+# 2.1 Applying CART:
+
+    2.1.1 To generate cart model lets create control vairbale and build the tree usnit it and plot the tree.
+    
+```{r echo=FALSE}
+set.seed(3000)
+t_control = rpart.control(minsplit=15, minbucket = 5, cp = 0, xval = 5)
+ctree = rpart(formula = accepted_personal_loan ~ . , data = traindata, method = "class", control = t_control )
+ctree
+```
+
+    2.1.2 Lest plot the tree.
+    
+```{r echo=FALSE, fig.width=10}
+fancyRpartPlot(ctree,cex = 0.55,uniform = TRUE)
+```
+
+    2.1.2 We can say from above that currently our tree is iverfitting as complexity oarameter is set to 0.
+
+# 2.2 Interpret the CART model output:
+
+    2.2.1 Our initial tree was build with complexity paraeter = 0 . Now lest see the complexity chart at each node of the previous tree.Also plot it.
+    
+```{r echo=FALSE}
+printcp(ctree)
+plotcp(ctree)
+```
+    
+    2.2.2 NOw we need ot prune the three to fine tuen it.
+    
+    2.2.3 From above result we can see that xerror(cross validation) is minimum(0.0268657) when nsplit is 3 , same can be seen from the above graph as well.
+    
+    2.2.4 Variables actually used in tree construction:
+    CCAvg             credit_card       Education         family_members    income_in_K_month
+    zip_code  
+    
+    2.2.5 so we are going to prune the tree at 0.0268657 complexity parameter level.
+    
+    2.2.6 Lest build the pruned model and tree.
+    
+```{r echo=FALSE}
+ptree = prune(ctree,cp=0.0268657,"CP")
+ptree
+printcp(ptree)
+fancyRpartPlot(ptree,cex = 0.55,uniform = TRUE)
+```
+    
+    2.2.7 We can see that there is not much changes, Root node error is 9% Approx.
+    
+    2.2.8 Pruned tree generated with three nodes.
+    
+    2.2.9 Variables actually used in prune tree construction:
+    Education         family_members    income_in_K_month
+    
+    2.2.10 We can see that tree splitting started with income_in_K_month and where value is < 115 contains 90% record and >115 contains 10% record only. 
+    
+    2.2.11 For each node we can figure out the business rulse(Splitting rules) of data at thse nodes by below. For example we want to see the splitting rules of node 3.
+    
+```{r echo=FALSE}
+path.rpart(ptree,3)
+```
+
+
+# 2.3 Applying Random Forests:
+
+    2.3.1 To generate randome forest we need to pass multipl parameter to randomForest function.
+    
+    2.3.2 Target variable is the variable need to predict(here it is accepted_personal_loan).
+    
+    2.3.3 nTree - number of tree we are going to use (start with any odd number). Here we are going to use 501.
+    
+    2.3.4 mtry - number of independent variable tried for each node.Generally we use square root of indeppendent variables.
+    
+    **Lest build and plot random forest. Depending on outcome we are going to tune the random forest later**
+  
+```{r echo=FALSE}
+rndForest = randomForest(accepted_personal_loan ~ ., data = traindata[-3], ntree = 501, mtry = 3, nodesize = 10, importance = TRUE ) 
+
+print(rndForest)
+plot(rndForest)
+```
+    
+    
+# 2.4 Interpret the RF model output.
+    
+    3.4.1 We can see from above result that OOB(out of bag) erro is 1.63% only.
+    
+    2.4.2 From diagram we can see that green line is the error rate while predicting target = 1.
+    
+    2.4.3 Red line shows the error rate while predecting target = 0.
+    
+    2.4.4 Black line shows OOB error rate. We can see that it started to decrease till 40 to 50 and then it is constant.
+    
+**Lest look at importance parameter which shows how importance of the independent variables are**
+
+```{r echo=FALSE}
+rndForest$importance
+```
+
+    2.4.5 MeanDecreaseAccuracy and MeanDecreaseGini is the column which describes how imporatnace a vairable is to generate randome forest.(NOte: They are different mechanism)
+    
+    2.4.6 Higher the number , more impotant the variable.
+    
+**Lest Fine tuen our ranfome forest**
+    
+    
+```{r echo=FALSE}
+set.seed(3000)
+tRndForest = tuneRF(x = traindata[c(-3,-8)],y = traindata$accepted_personal_loan, mtryStart = 3, stepFactor = 1.5, ntreeTry = 51, improve = 0.0001, nodesize = 10, trace = TRUE, plot = TRUE,doBest = TRUE, importance = T)
+```
+
+    2.4.7 From above plot and result we can see that 2 and 4 mtry increasing the OOB error rate so we can say that 3 is correct value for mtry.
+    
+    
+# 3.1 Confusion matrix interpretation:
+
+    Using Confusion matrix we can see the accurace of a model in tabular form.
+    
+    
+## Predecting accuracy of CART Model using confusion matrix:
+
+    **3.1.1 Generating confusion matrix and predecting accuracy of train data.**
+  
+    
+```{r echo=FALSE}
+DTpredTrain1 = predict(ptree, newdata = traindata, type = "class")
+tab1 = table(traindata$accepted_personal_loan, DTpredTrain1)
+tab1
+sum(diag(tab1))/sum(tab1)
+```
+
+
+    3.1.2 We can see from above result that ptree model is highly accurate(98%) in our train dataset.
+    
+    3.1.3 Out of 3153 record with 0 value model prediacted 3149 correctly and only 4 record were predicted wrongly.
+    
+    3.1.4 Out of 335 record with 1 value 275 are predicted correctly and 60 predicated wrongly.
+    
+    
+    **3.1.5 Generating confusion matrix and predecting accuracy of train data**
+    
+```{r echo=FALSE}
+DTpredTest1 = predict(ptree, newdata = testdata, type = "class")
+tab2 = table(testdata$accepted_personal_loan, DTpredTest1)
+tab2
+sum(diag(tab2))/sum(tab2)
+```
+    
+    3.1.6 We can see from above result that ptree model is highly accurate(97%) in our test dataset as well.
+    
+    3.1.7 Out of 1351 record with 0 value model prediacted 1349 correctly and only 2 record were predicted wrongly.
+    
+    3.1.8 Out of 143 record with 1 value 112 are predicted correctly and 31 predicated wrongly.
+    
+## Predecting accuracy of RF Model Using confusion matrix:
+
+    **3.1.9 Generating confusion matrix and predecting accuracy of train data.**
+    
+```{r}
+DTpredTrain2 = predict(tRndForest, newdata = traindata, type = "class")
+tab3 = table(traindata$accepted_personal_loan, DTpredTrain2)
+tab3
+sum(diag(tab3))/sum(tab3)
+```
+
+    3.1.10 We can see from above result that ptree model is highly accurate(99%) in our train dataset.
+    
+    3.1.11 Out of 3153 record with 0 value model prediacted 3152 correctly and only 1 record were predicted wrongly.
+    
+    3.1.12 Out of 335 record with 1 value 313 are predicted correctly and 22 predicated wrongly.
+    
+```{r}
+DTpredTest2 = predict(tRndForest, newdata = testdata, type = "class")
+tab4 = table(testdata$accepted_personal_loan, DTpredTest2)
+tab4
+sum(diag(tab4))/sum(tab4)
+```
+
+    3.1.13 We can see from above result that ptree model is highly accurate(98%) in our test dataset as well.
+    
+    3.1.14 Out of 1351 record with 0 value model prediacted 1350 correctly and only 1 record were predicted wrongly.
+    
+    3.1.15 Out of 143 record with 1 value 122 are predicted correctly and 21 predicated wrongly.
+    
+    
+# 3.2 Interpretation of other Model Performance Measures:
+
+
+###  Applying model performance mesaures on CART Training dataset.
+
+**Rank Order table**
+
+```{r}
+traindata$prob1 = predict(ptree, newdata = traindata, type = "prob")[,"1"]
+probs = seq(0,1,length = 11)
+qs1 = quantile(traindata$prob1, probs)
+print(qs1)
+
+
+```
+
+**Generate table with deciles** 
+
+```{r echo=FALSE}
+traindata$deciles1=cut(traindata$prob1, unique(qs1),include.lowest = TRUE, right=FALSE)
+table(traindata$deciles1)
+
+trainDT1 = data.table(traindata)
+rankTbl1 = trainDT1[, list(
+  cnt = length(accepted_personal_loan), 
+  cnt_tar1 = sum(as.integer(accepted_personal_loan == 1)), 
+  cnt_tar0 = sum(as.integer(accepted_personal_loan == 0))
+  ), 
+  by=deciles1][order(-deciles1)]
+
+rankTbl1$rrate = round(rankTbl1$cnt_tar1 / rankTbl1$cnt,4)*100;
+rankTbl1$cum_resp = cumsum(rankTbl1$cnt_tar1)
+rankTbl1$cum_non_resp = cumsum(rankTbl1$cnt_tar0)
+rankTbl1$cum_rel_resp = round(rankTbl1$cum_resp / sum(rankTbl1$cnt_tar1),4)*100;
+rankTbl1$cum_rel_non_resp = round(rankTbl1$cum_non_resp / sum(rankTbl1$cnt_tar0),4)*100;
+rankTbl1$ks = abs(rankTbl1$cum_rel_resp - rankTbl1$cum_rel_non_resp);
+
+print(rankTbl1)
+```
+
+
+
+    
+    3.2.1 We will next use the ROCR and ineq packages to compute AUC, KS and gini:
+    
+          1. Create a object using predection probability and actual target.
+          
+          2. PLot the grpth using true positive rate and false positive rate.
+          
+          3. Calculate KS value,Higher the value better the model
+          
+          4. Calculate AUC - Area under the curve(Higher the value better the model).
+          
+          5. Gini - Similar to AUC - Higer the value better the model.
+          
+```{r}
+predObj1 = prediction(traindata$prob1,traindata$accepted_personal_loan)
+perf1 = performance(predObj1,"tpr","fpr")
+plot(perf1)
+```
+          
+    
+```{r}
+KS1 = max(perf1@y.values[[1]]-perf1@x.values[[1]])
+cat("KS Value of CART TRaining dataset : ", KS1)
+```
+```{r}
+auc1 = performance(predObj1,"auc"); 
+auc1 = as.numeric(auc1@y.values)
+cat("AUC Value of CART TRaining dataset : ", auc1)
+```
+```{r}
+gini1 = ineq(traindata$prob1, type="Gini")
+cat("Gini Value of CART TRaining dataset : ", gini1)
+```
+
+###  Applying model performance mesaures on CART Test dataset.
+
+```{r}
+testdata$prob1 = predict(ptree, newdata = testdata, type = "prob")[,"1"]
+probs = seq(0,1,length = 11)
+qs2 = quantile(testdata$prob1, probs)
+print(qs2)
+```
+
+**Generate table with deciles** 
+
+```{r echo=FALSE}
+testdata$deciles1=cut(testdata$prob1, unique(qs2),include.lowest = TRUE, right=FALSE)
+table(testdata$deciles1)
+
+trainDT2 = data.table(testdata)
+rankTbl2 = trainDT2[, list(
+  cnt = length(accepted_personal_loan), 
+  cnt_tar1 = sum(as.integer(accepted_personal_loan == 1)), 
+  cnt_tar0 = sum(as.integer(accepted_personal_loan == 0))
+  ), 
+  by=deciles1][order(-deciles1)]
+
+rankTbl2$rrate = round(rankTbl2$cnt_tar1 / rankTbl2$cnt,4)*100;
+rankTbl2$cum_resp = cumsum(rankTbl2$cnt_tar1)
+rankTbl2$cum_non_resp = cumsum(rankTbl2$cnt_tar0)
+rankTbl2$cum_rel_resp = round(rankTbl2$cum_resp / sum(rankTbl2$cnt_tar1),4)*100;
+rankTbl2$cum_rel_non_resp = round(rankTbl2$cum_non_resp / sum(rankTbl2$cnt_tar0),4)*100;
+rankTbl2$ks = abs(rankTbl2$cum_rel_resp - rankTbl2$cum_rel_non_resp);
+
+print(rankTbl2)
+```
+
+```{r}
+predObj2 = prediction(testdata$prob1,testdata$accepted_personal_loan)
+perf2 = performance(predObj2,"tpr","fpr")
+plot(perf2)
+KS2 = max(perf2@y.values[[1]]-perf2@x.values[[1]])
+cat("KS Value of CART Test dataset : ", KS2)
+```
+
+```{r}
+auc2 = performance(predObj2,"auc"); 
+auc2 = as.numeric(auc2@y.values)
+cat("AUC Value of CART Test dataset : ", auc2)
+```
+```{r}
+gini2 = ineq(testdata$prob1, type="Gini")
+cat("Gini Value of CART Test dataset : ", gini2)
+```
+
+
+###  Applying model performance mesaures on RF Training dataset.
+
+
+**Rank Order table**
+
+```{r}
+traindata$prob2 = predict(tRndForest, newdata = traindata, type = "prob")[,"1"]
+probs = seq(0,1,length = 11)
+qs3 = quantile(traindata$prob2, probs)
+print(qs3)
+```
+
+**Generate table with deciles** 
+```{r echo=FALSE}
+traindata$deciles2=cut(traindata$prob2, unique(qs3),include.lowest = TRUE, right=FALSE)
+table(traindata$deciles2)
+
+trainDT3 = data.table(traindata)
+rankTbl3 = trainDT3[, list(
+  cnt = length(accepted_personal_loan), 
+  cnt_tar1 = sum(as.integer(accepted_personal_loan == 1)), 
+  cnt_tar0 = sum(as.integer(accepted_personal_loan == 0))
+  ), 
+  by=deciles2][order(-deciles2)]
+
+rankTbl3$rrate = round(rankTbl1$cnt_tar1 / rankTbl3$cnt,4)*100;
+rankTbl3$cum_resp = cumsum(rankTbl3$cnt_tar1)
+rankTbl3$cum_non_resp = cumsum(rankTbl3$cnt_tar0)
+rankTbl3$cum_rel_resp = round(rankTbl3$cum_resp / sum(rankTbl3$cnt_tar1),4)*100;
+rankTbl3$cum_rel_non_resp = round(rankTbl3$cum_non_resp / sum(rankTbl3$cnt_tar0),4)*100;
+rankTbl3$ks = abs(rankTbl3$cum_rel_resp - rankTbl3$cum_rel_non_resp);
+
+print(rankTbl3)
+```
+
+
+```{r}
+predObj3 = prediction(traindata$prob2,traindata$accepted_personal_loan)
+perf3 = performance(predObj3,"tpr","fpr")
+plot(perf3)
+KS3 = max(perf3@y.values[[1]]-perf3@x.values[[1]])
+cat("KS Value of RF Train dataset : ", KS3)
+```
+
+
+```{r}
+auc3 = performance(predObj3,"auc"); 
+auc3 = as.numeric(auc3@y.values)
+cat("AUC Value of RF Train dataset : ", auc3)
+```
+
+
+```{r}
+gini3 = ineq(traindata$prob2, type="Gini")
+cat("Gini Value of RF Train dataset : ", gini3)
+```
+
+
+###  Applying model performance mesaures on RF Test dataset.
+
+
+**Rank Order table**
+
+```{r}
+testdata$prob2 = predict(tRndForest, newdata = testdata, type = "prob")[,"1"]
+probs = seq(0,1,length = 11)
+qs4 = quantile(testdata$prob2, probs)
+print(qs4)
+```
+
+**Generate table with deciles** 
+
+```{r echo=FALSE}
+testdata$deciles2=cut(testdata$prob2, unique(qs4),include.lowest = TRUE, right=FALSE)
+table(testdata$deciles2)
+
+trainDT4 = data.table(testdata)
+rankTbl4 = trainDT4[, list(
+  cnt = length(accepted_personal_loan), 
+  cnt_tar1 = sum(as.integer(accepted_personal_loan == 1)), 
+  cnt_tar0 = sum(as.integer(accepted_personal_loan == 0))
+  ), 
+  by=deciles2][order(-deciles2)]
+
+rankTbl4$rrate = round(rankTbl4$cnt_tar1 / rankTbl4$cnt,4)*100;
+rankTbl4$cum_resp = cumsum(rankTbl4$cnt_tar1)
+rankTbl4$cum_non_resp = cumsum(rankTbl4$cnt_tar0)
+rankTbl4$cum_rel_resp = round(rankTbl4$cum_resp / sum(rankTbl4$cnt_tar1),4)*100;
+rankTbl4$cum_rel_non_resp = round(rankTbl4$cum_non_resp / sum(rankTbl4$cnt_tar0),4)*100;
+rankTbl4$ks = abs(rankTbl4$cum_rel_resp - rankTbl4$cum_rel_non_resp);
+
+print(rankTbl4)
+```
+
+
+```{r}
+predObj4 = prediction(testdata$prob2,testdata$accepted_personal_loan)
+perf4 = performance(predObj4,"tpr","fpr")
+plot(perf4)
+KS4 = max(perf4@y.values[[1]]-perf4@x.values[[1]])
+cat("KS Value of RF Test dataset : ", KS4)
+```
+
+
+```{r}
+auc4 = performance(predObj4,"auc"); 
+auc4 = as.numeric(auc4@y.values)
+cat("AUC Value of RF Test dataset : ", auc4)
+```
+
+
+```{r}
+gini4 = ineq(testdata$prob2, type="Gini")
+cat("Gini Value of RF Test dataset : ", gini4)
+```
+
+```{r echo=FALSE}
+print("Performance Parameter on Train Dataset")
+Train_Data = c("Accuracy","KS","AUC","GINI")
+CART_Score = c(0.9816514,KS1,auc1,gini1)
+RF_Score = c(0.997133,KS3,auc3,gini3)
+Train_Performance = data.frame(Train_Data, CART_Score, RF_Score)
+print(Train_Performance)
+```
+
+```{r echo=FALSE}
+print("Performance Parameter on Test Dataset")
+Test_Data = c("Accuracy","KS","AUC","GINI")
+CART_Score = c(0.9779116,KS2,auc2,gini2)
+RF_Score = c(0.9852744,KS4,auc4,gini4)
+Test_Performance = data.frame(Test_Data, CART_Score, RF_Score)
+print(Test_Performance)
+```
+
+
+**Observations from above results**
+
+    1. From deciles we can see that CART model data can be devided only into two decile in both train and test dataset. Where as RF models can be devided into 5 decile.
+    
+    2. Above two tables shows we can see that Performane of RF model is more accurate than CART mode.
+    
+    3. In CART model 100% data belongs to top 2 decile and in RF belongs to top 5 decile.
+    
+    4. We can see from rank order table that if we need to target only for response 1 we can take top 10% which 95% of all the desired people.
+    
+    
+
+# 3.3 Remarks on Model validation exercise: 
+
+    1. Both the Model CART and FR given similar kind of performance measurment and they are very high, which is good but at the same time this can might lead to overfitting.
+    
+    2. If we go by numbers we can ay that RF nodel is more accurate than CART in both training and test dataset.
+    
+    3. Incomome per month edcation and number of family member are most important variable ton predict result.
+    
+    4. There were missing record, invalid records and imbalance records which were treated but could have impacted the outcome of the model performance.
+    
+    5. Since performance measure was similar in both test and train dataset we can say that this is a good model.

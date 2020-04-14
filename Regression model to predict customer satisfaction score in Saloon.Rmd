@@ -1,0 +1,634 @@
+---
+title: "Regression model to predict customer satisfaction score in Saloon"
+author: "Shiladri Sarkar"
+date: "9/28/2019"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+setwd("E:/BABI Study Materials/Project 2")
+mydata = read.csv("Factor-Hair-Revised.csv")
+```
+
+## 1. Project Overview
+
+The objective of the project is to use the dataset 'Factor-Hair-Revised.csv ' to build an optimum regression model to predict satisfaction. As part of this need to do the below analysis.
+
+  1.1 Check the given data-set and variables for multicollinearity.
+  
+  1.2 Perform PCA/Factor analysis to extract four factor from given independent variables to handle       multicollinearity.
+   
+  1.3 Build a multiple regression model to predict Customer Satisfaction based of the four factors       chosen during factor analysis.
+  
+  1.4 Multicollinearity: – It occurs when independent variables of a regression model is highly          correlated. In this kind of situation it is very difficult to estimate relationship
+   	  between each independent variable and the dependent variables.
+
+## 2. Assumption
+
+   2.1 Independent variables are not highly correlated with each other (Multi Collinearity        Issue).
+   
+   2.2 All the observations are independent to each other.
+   
+   2.3 Linear relationship exists between independent and dependent variables.
+   
+   2.4 Dependent variables and residuals are uncorrelated.
+   
+   2.5 Independent variables are expected to be normally distributed for better results.
+   
+   2.6 Variability of Independent variable(X) should be positive.
+   
+### Library used:
+
+  1. ggplot2
+  2. dplyr
+  3. data.table
+  4. reshape2
+  5. caTools
+  6. car
+  7. psych
+   
+## Explorary Data analysis(Question 1.1 & 1.2)
+
+
+```{r mydata}
+summary(mydata)
+str(mydata)
+anyNA(mydata) 
+```
+Observations  from above Data Structure:
+
+1. There are 13 variables and 100 observations in the given dataset.
+
+2. Data type of all the variables  is numeric except ID which is integer.
+
+3. We can ignore variable ID as it is just an identifier.
+
+4. There are no missing values.
+
+5. Variable  Satisfaction is dependent variable and rest of them are independent variables.
+
+
+### Univariate Analysis.
+We are going to use function summary to identify outliers and Using boxplot we are going to display the same.
+
+**ProdQual:** From below summary result and box plot we can say that here are no outliers in                     Produc Quality varaible.
+```{r  echo=TRUE}
+summary(mydata$ProdQual)
+boxplot(mydata$ProdQual, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$ProdQual)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Product Quality Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+**Ecom:** From below summary result and box plot we can say that here are few outliers in                      E-Commerce variable.We are not going to do outlier treatment as these are ratings from               1 to 10.
+
+```{r  echo=TRUE}
+summary(mydata$Ecom)
+boxplot(mydata$Ecom, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$Ecom)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of E-Commerce Customer Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+```
+
+
+
+**TechSup:** From below summary result and box plot we can say that here are no outliers in                     Technical Suppprt varaible.
+
+```{r echo=TRUE}
+summary(mydata$TechSup)
+boxplot(mydata$TechSup, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$TechSup)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Tech Support Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+
+**CompRes:** From below summary result and box plot we can say that here are no outliers in                     Complaint Resolution varaible.
+```{r}
+summary(mydata$CompRes)
+boxplot(mydata$CompRes, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$CompRes)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Complaint Resolution Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+**Advertising:** From below summary result and box plot we can say that here are no outliers in                     Advertising  varaible.
+
+```{r}
+summary(mydata$Advertising)
+boxplot(mydata$Advertising, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$Advertising)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Advertising Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+**ProdLine:** From below summary result and box plot we can say that here are no outliers in                       Product Line varaible.
+
+```{r}
+summary(mydata$ProdLine)
+boxplot(mydata$ProdLine, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$ProdLine)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Product Line Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+
+**SalesFImage:** From below summary result and box plot we can say that here are few outliers in                      SalesFImage variable.We are not going to do outlier treatment as these are ratings                   from 1 to 10.
+```{r}
+summary(mydata$SalesFImage)
+boxplot(mydata$SalesFImage, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$SalesFImage)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Salesforce Image Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+**ComPricing:** From below summary result and box plot we can say that here are no outliers in                       ComPricing Line varaible.
+
+```{r echo=TRUE}
+summary(mydata$ComPricing)
+boxplot(mydata$ComPricing, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$ComPricing)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Competitive Pricing Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+**WartyClaim:** From below summary result and box plot we can say that here are no outliers in                       WartyClaim Line varaible.
+
+```{r}
+summary(mydata$WartyClaim)
+boxplot(mydata$WartyClaim, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$WartyClaim)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Warrenty & Claims Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+**OrdBilling:** From below summary result and box plot we can say that here are few outliers in                      OrdBilling variable **both side**.We are not going to do outlier treatment as these                  are ratings from 1 to 10.
+```{r}
+summary(mydata$OrdBilling)
+boxplot(mydata$OrdBilling, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$OrdBilling)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Order & Billing Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+**DelSpeed:** From below summary result and box plot we can say that here is one outliers in                       DelSpeed variable **lower side**.We are not going to do outlier treatment as these                   are ratings from 1 to 10.
+```{r}
+summary(mydata$DelSpeed)
+boxplot(mydata$DelSpeed, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$DelSpeed)) + geom_boxplot(fill = "#999999",col = "#DD8888") +
+  ylab("Customer Ratings") + ggtitle("Box Plot of Delivery Speed Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+**Satisfaction:** From below summary result and box plot we can say that here are no outliers in                       Satisfaction Line varaible.
+```{r}
+summary(mydata$Satisfaction)
+boxplot(mydata$Satisfaction, plot=FALSE)$out ## Outlier Values
+library(ggplot2)
+ggplot(mydata, aes(x = 1, y = mydata$Satisfaction)) + geom_boxplot(fill = "#999999",col = "#DD8888") + ylab("Customer Ratings") + ggtitle("Box Plot of Customer Satisfaction Ratings") + scale_color_brewer(palette="Dark2")  + theme_classic() + theme(plot.title = element_text(hjust = 0.5),axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+```
+
+### Multivariate Analysis
+
+**Mean Ratings** Looking at the below barplot we can say that Product Quality has the highest average ratings followed by Competitive Pricing and E=Commerce and Delivery Speed has lowest average ratings.
+
+```{r,fig.width=10, fig.height=6}
+x = as.data.frame(sapply(mydata[-1],FUN=mean))
+library(data.table)
+setDT(x,keep.rownames = T)
+colnames(x) = c("Category","MeanRatings")
+x
+ggplot(x,aes(x = x$Category,y = x$MeanRatings,fill = x$Category)) + geom_bar(stat = "identity") +
+  xlab("Ratings Category") + ylab("Mean Ratings") +
+  geom_text(aes(label = x$MeanRatings),stat = "identity", vjust = 1.6,color = "white",size = 3.5) +
+  labs(fill = "Different category",title = "Mean Ratings across different category") + theme(plot.title = element_text(colour = "blue",
+                                                                                           face = "bold",
+                                                                                           hjust = 0.5),
+                                                                 legend.title = element_text(color = "green",
+                                                                                             face = "bold")) +
+  theme(legend.position = "bottom")
+```
+
+
+**Observvations from below Box PLot** 
+
+1. ProdQual , ComPricing , ProdLine are spread is more where Ecom,DelSpeed and Ordbilling has less spread.
+
+2. Also we can see that Ecom, SalesFlmage,DelSpeed and Ordbilling has outliers.
+```{r,fig.width=10, fig.height=6}
+ggplot(stack(mydata[-1]),aes(x = ind,y = values, fill = ind)) + geom_boxplot() + theme(legend.position = "none") +
+  labs(title = "Comparative BOx Plot of all the category", x = "Ratings Category", y = "Customer Ratings") +
+  theme(plot.title = element_text(colour = "blue",
+                                  face = "bold",
+                                  hjust = 0.5))
+```
+
+**Below Density Plot Showing that most of the varaibles having normal Distribution**
+
+```{r,fig.width=10, fig.height=6}
+ggplot(stack(mydata[-1]),aes(x = values, fill = ind)) + geom_density() + theme(legend.position = "none") +
+  labs(title = "Density Plot of all the category", x = "Ratings Category", y = "Customer Ratings") +
+  theme(plot.title = element_text(colour = "blue",
+                                  face = "bold",
+                                  hjust = 0.5)) + facet_wrap(~ind)
+```
+
+
+## Check for Multicollinearity - (Question 2)
+
+```{r,width=8, fig.height=6}
+cormat = round(cor(mydata[,c(-1,-13)]),2)
+library(reshape2)
+melted_cormat <- melt(cormat)
+
+get_upper_tri <- function(cormat){
+  cormat[lower.tri(cormat)]<- NA
+  return(cormat)
+}
+  
+upper_tri <- get_upper_tri(cormat)
+
+melted_cormat <- melt(upper_tri, na.rm = TRUE)
+
+
+ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+  geom_tile(color = "white")+
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Pearson\nCorrelation") +
+  theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1))+
+  coord_fixed() +
+geom_text(aes(Var2, Var1, label = value), color = "black", size = 4) +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.border = element_blank(),
+    panel.background = element_blank(),
+    axis.ticks = element_blank(),
+    legend.justification = c(1, 0),
+    legend.position = c(0.6, 0.7),
+    legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 7, barheight = 1,
+                               title.position = "top", title.hjust = 0.5))
+```
+
+**Below are the Observations from above Correlation Plot**
+
+2.1 We generated Correlation plot to check the relationship between variables.
+
+2.2 When there is high correlation between multiple independent variables we can say that there is Multicollinearity.
+
+2.3 OrdBilling and DelSpeed are highly Correlated.
+
+2.4 Ecom and SalesFImage are highly Correlated.
+
+2.5 TechSup and WartyClaim are highly Correlated.
+
+2.6 CompRes and Ordbilling are higly Correlated.
+
+2.7 CompRes and DelSpeed are highly Correlated.
+
+All of them are having positive Correlation. All the above correlation are highly significance. So we can say that there are high collinearity present between independent variables.
+
+
+## Simple Linear Regression (with every variable)(Question 3)
+
+**Satisfaction is a function of ProdQual**
+```{r}
+model1=lm(Satisfaction~ProdQual,data = mydata)
+summary(model1)
+```
+**Observation:** Statisticaly P Value 2.901e-07 very small and highly  significance where R square 0.2365 is not.
+
+**Satisfaction is a function of Ecom**
+```{r}
+model2=lm(Satisfaction~Ecom,data = mydata)
+summary(model2)
+```
+**Observation:** Statisticaly P Value 0.00437 very small and highly  significance and R square 0.07994 is also significant.
+
+**Satisfaction is a function of TechSup**
+```{r}
+model3=lm(Satisfaction~TechSup,data = mydata)
+summary(model3)
+```
+**Observation:** Statisticaly P Value 0.265 very high and not significance and R square 0.01268 is also not significant.
+
+**Satisfaction is a function of CompRes**
+
+```{r}
+model4=lm(Satisfaction~CompRes,data = mydata)
+summary(model4)
+```
+**Observation:** Statisticaly P Value 3.09e-11 very low and highly significance and R square 0.3639 is  not significant.
+
+**Satisfaction is a function of Advertising**
+```{r}
+model5=lm(Satisfaction~Advertising,data = mydata)
+summary(model5)
+```
+**Observation:** Statisticaly P Value 0.00206 very low and highly significance and R square 0.09282 is  not significant.
+
+**Satisfaction is a function of ProdLine**
+
+```{r}
+model6=lm(Satisfaction~ProdLine,data = mydata)
+summary(model6)
+```
+**Observation:** Statisticaly P Value 2.95e-09 very low and highly significance and R square 0.3031 is low and not significant.
+
+**Satisfaction is a function of SalesFImage**
+
+```{r}
+model7=lm(Satisfaction~SalesFImage,data = mydata)
+summary(model7)
+```
+
+**Observation:** Statisticaly P Value 1.16e-07 very low and highly significance and R square 0.2502 is low and not significant.
+
+**Satisfaction is a function of ComPricing**
+
+```{r}
+model8=lm(Satisfaction~ComPricing,data = mydata)
+summary(model8)
+```
+**Observation:** Statisticaly P Value 0.0376 very low and highly significance and R square 0.04339 is low and not significant.
+
+**Satisfaction is a function of WartyClaim**
+
+```{r}
+model9=lm(Satisfaction~WartyClaim,data = mydata)
+summary(model9)
+```
+**Observation:** Statisticaly P Value 0.0772 high and not highly significance and R square 0.03152 is low and not significant.
+
+**Satisfaction is a function of OrdBilling**
+
+```{r}
+model10=lm(Satisfaction~OrdBilling,data = mydata)
+summary(model10)
+```
+
+**Observation:** Statisticaly P Value 2.60e-08 very low and highly significance and R square 0.2722 is low and not significant.
+
+**Satisfaction is a function of DelSpeed**
+
+```{r}
+model11=lm(Satisfaction~DelSpeed,data = mydata)
+summary(model11)
+```
+
+**Observation:** Statisticaly P Value 3.30e-10 very low and highly significance and R square 0.333 is low and not significant.
+
+## Perform PCA/FA and Interpret the Eigen Values (apply Kaiser Normalization Rule) (Question 4.1)
+
+**Lets Create a regression Model using all the independent vairbales to verify overall regression Model. Also generate regression line**
+
+```{r}
+model12=lm(Satisfaction~.,data = mydata[,-1])
+summary(model12)
+```
+**Observations from above Linear Model:**
+
+  1. There are three(ProdQual,Ecom and SalesFImage) independent variable  has very low P value so they are  significan out of 
+  11 variables.
+  
+  2. Multiple R square 0.8021 and Adjusted R square 0.7774 is high and significat. Independent variable explains 78% of the
+  Variance.
+  
+  3. Overall P value 2.2e-16 is low and very significant.
+
+**Scatter Diagram**
+```{r}
+ggplot(mydata,aes(x=mydata$ProdQual+mydata$Ecom+mydata$TechSup+mydata$CompRes+mydata$Advertising+mydata$ProdLine
+                  +mydata$SalesFImage+mydata$ComPricing+mydata$WartyClaim+mydata$OrdBilling+mydata$DelSpeed,y=mydata$Satisfaction)) + 
+  geom_smooth(method='lm',formula=y~x) + geom_point() +
+  labs(x = "Dependent Variable", y = "Satisfaction")
+```
+
+**We have two option to reduce correlated variables**
+
+1. Use VIF to remove highly correlated varaibles.
+
+2. Perform PCA/Factor Analysis on correlated variables.
+
+
+**Lest do the Bartlett test for sphericity : Null hypothesis H0 - All Dymentions are same : 5% significance level**
+```{r}
+library(psych)
+cortest.bartlett(cor(mydata[,c(-1,-13)]))
+```
+**Observations** Since P value is very low(1.79337e-96 < 0.05) and significant we can say that PCA test is valid for this dataset.
+
+
+**Check sampling adequacy**
+
+```{r}
+KMO(cor(mydata[,c(-1,-13)]))
+```
+**Observations:** Overalll MAS is greater than 50%(Sample size is sufficient to proceed with FA) se we can procedd with the PCA/Factor Analysis.
+
+**Calculate VIF Values**
+
+```{r}
+library(car)
+vif(model12)
+```
+**Observatiosn:** There are two variables having VIF value greater than 4, that means there are other independent vairbale 
+which can explain those two variable(CompRes nd DelSpeed).
+
+**Lest Proceed with PCA/FA**
+
+**Generate Eigen Value and Scree Plot**
+
+```{r}
+newdata = mydata[,c(-1,-13)]
+cormatrix = cor(newdata)
+evector = eigen(cormatrix)
+eigen_value = evector$values
+eigen_value
+plot(eigen_value, xlab = "Factors", ylab = "Eigen Values", col="red", pch=20)
+lines(eigen_value, col="blue", lty = 2)
+```
+**Observations**
+
+1. In factor analysis, eigenvalues are used to condense the variance in a correlation matrix. "The factor with the largest eigenvalue has the most variance and so on, down to factors with small or negative eigenvalues that are usually omitted from solutions.
+
+2. There are 4 variables having Eigen Value more than 1.
+
+3. From Scree Plot We can see tha ther can be 4 or 5 Factors we can extract from above result using PCA/FA.
+
+4. Sum of all the eigen value is 10(100%) , we can see that first four variables explains 8.74 (87%) of the total variable.
+
+
+**Now we are going to use factor analysis**
+
+1. We will be using fa() function to generate factor score.
+
+2. For rptation we will be using orthogonal rotation (VARIMAX) as in orthogonal rotation the rotated factors will remain
+   uncorrelated.
+   
+3. We will be using 4 factors to run the FA.
+
+```{r}
+fa1 = fa(newdata, nfactors = 4, rotate ="varimax", fm ="pa")
+print(fa1)
+fa.diagram(fa1)
+attributes(fa1)
+fa1$scores
+```
+
+## Output Interpretation Tell why only 4 factors are being asked in the questions and tell whether it is correct in choosing 4 factors. Name the factors with correct explanations(Question 4.2)
+
+1. We are using Kaiser Normalization Rule to do the factor analysis, as per the rule we generate eigen value The number of variables has eigen value more than one , we used that number as number of factor.
+
+2. Since there are four variables having eigen value more than one we are using 4 factor.
+
+3. From scree plot if we use elbow rule we could have select 5 factors.
+
+4. Since we are using Kaiser Normalization Rule it is correct to select 4 Factors.
+
+### Different Factors and their Names with Explanation:
+
+1. Factor PA1 Contains three variables DelSpeed(Delivery Speed), CompRes(Complaint Resolution) and OrdBilling(Order Billing). We can name it as **Order LifeCycle** because all these variables contains order placing(purchasing product) billing and delivery.
+
+2. Factor PA2 also Caontains three varibles Ecom(E-Commerce),Advertising and SalesFImage(Salesforce Image). We name name this factor as **Marketing Material**. As this factor contains all the Marketing operations  like Adverisement of saloon,E-commerce and Salesforce Efficency.
+
+3. Factor PA3 Contains two varibles Wartyclaim(Warranty & Claims) and TechSup(Technial Support). We can group and name them as **Warrenty Suppport** . We are naming them like this as they are post purchase benefits which customer gets.
+
+4. Factor PA4 contains three vriables ProdLine(Product Line),ProdQual(Product Quality) and CompPricing(Competitive Pricing). We cna name then as **Brand Image**. As these attributes builds brand image and customer loyalty towards the brand.
+
+
+## Create a data frame with a minimum of 5 columns, 4 of which are different factors and the 5th column is Customer Satisfaction (Question 5.1)
+
+We are going to use cbind function in R to Create a new data frame containing four factors and  Satisfaction.
+
+```{r}
+fdata = cbind(mydata[,13],fa1$scores)
+colnames(fdata) = c("Satisfaction","Order_LifeCycle","Marketing_Material","Warrenty_Suppport","Brand_Image")
+class(fdata)
+fdata = as.data.frame(fdata)
+class(fdata)
+head(fdata)
+```
+
+## Perform Multiple Linear Regression with Customer Satisfaction as the Dependent Variable and the four factors as Independent Variables(Question 5.2)
+
+LLets create a Linear model using fata dataframe where dependent variable is Satisfaction and independent variables are Order_LifeCycle, Marketing_Material, Warrenty_Suppport, Brand_Image which we derived from previous facot analyis. Aslo see the linear plot.
+```{r}
+model13=lm(Satisfaction ~ .,data = fdata)
+print(model13)
+print(summary(model13))
+
+ggplot(fdata,aes(x=fdata$Order_LifeCycle + fdata$Marketing_Material + fdata$Warrenty_Suppport + fdata$Brand_Image ,y=fdata$Satisfaction)) + 
+  geom_smooth(method='lm',formula=y~x) + geom_point() +
+  labs(x = "Dependent Variable", y = "Satisfaction")
+```
+
+## MLR summary interpretation and significance (R, R2, Adjusted R2,Degrees of Freedom, f-statistic, coefficients along with p-values) (Question 5.3)
+
+From the Summar data we can say that stastically predecting Satisfaction Order_LifeCycle,Marketing_Material, and Brand_Image respectively are very significant where as Warrenty_Suppport is not that much significant.
+
+  **1. R :**
+  
+  **2. R2(R-squared):** R-squared measures the proportion of the variation in  dependent variable (Satisfaction) explained by  independent variables in our linear regression model. Here it is is 70%. If value of R-squared increases efficiency of the model will increase. **R-squaredis a basic matrix which tells you about that how much variance is been explained by the model**. In a multivariate linear regression  if you keep on adding new variables, the R square value will always increase irrespective of the variable significance.
+  
+  **3. Adjusted R2:** Adjusted R-squared adjusts the statistic based on the number of independent variables in the model.Here it is 68% and independent variable is 4.Like R square If value of R-squared increases efficiency of the model will increase. Adjusted R square do is calculate R square from only those variables whose addition in the model which are significant. So always while doing a multivariate linear regression we should look at adjusted R square instead of R square.
+  
+  **4. Degrees of Freedom:**The df(Regression) is one less than the number of parameters being estimated.That is, the df(Regression) = # of predictor variables. The df(Residual) is the sample size minus the number of parameters being estimated, so it becomes df(Residual) = n - (k+1) or df(Residual) = n - k - 1 = (100-4-1) = 95.
+  
+  **5. f-statistic:**The F Value or F ratio is the test statistic used to decide whether the model as a whole has statistically significant predictive capability, that is, whether the regression SS is big enough, considering the number of variables needed to achieve it. F is the ratio of the Model Mean Square to the Error Mean Square. Here it is 54.66.
+  
+  **6. coefficients:** These are the Values using which we Create our linear model. From avobe result we can see that Intercept is 6.91800. So if we build a model it will look like bow.
+  Y^ = 6.91800 + 0.57963X1 + 0.61978X2 + 0.05692X3 + 0.61168X4 where X1,X2,X3,X4 are Order_LifeCycle,Marketing_Material,Warrenty_Suppport and Brand_Image respectively.
+  
+  **7. p-value** Overall P value of the model is very low  2.2e-16 which is very significant that means statistically model is valid and we can reject the null hypothesis.
+
+### We can build another model with Train(70%) and Test Dataset(30%) by Splitting 100 obesrvation.
+
+**Splitting and building model with 70% data**
+
+```{r}
+library(caTools)
+#set.seed(111)
+spl = sample.split(fdata$Satisfaction, SplitRatio = 0.7)
+Train = subset(fdata, spl==T)
+Test = subset(fdata, spl==F)
+dim(Train)
+dim(Test)
+
+m2 = lm(Satisfaction ~., data = Train)
+summary(m2)
+vif(m2)
+```
+**Observations** Statistically We are not seeing much difference in out Train model compared to the model which we created with entire data
+
+**Using train data validate the model and Compute the R-squared**
+```{r}
+pred = predict(m2, newdata = Test)
+pred
+#Compute R-sq for the test data
+#SST
+SST = sum((Test$Satisfaction - mean(Train$Satisfaction))^2)
+SST
+#SSR
+SSE = sum((pred - Test$Satisfaction)^2)
+SSE
+#SSR
+SSR = sum((pred - mean(Train$Satisfaction))^2)
+SSR
+SSR/SST
+```
+**R-squard** of train data is 0.4805053
+
+## Output Interpretation(Question 5.4)
+
+**lest Use the backtracking abelity to validate the model**
+
+```{r,width=12, fig.height=6}
+plot(fdata$Satisfaction, col="blue", type="b",xlab = "Data Point", ylab = "Customer Satisfaction")
+Predection = predict(model13)
+lines(Predection, col = "red")
+```
+
+  **1.** We can  assume and conclude that the multiple regression model built on the dataset with factor analysis explains almost 68% of variation in the dependent variable and upon checking the model validity we can conclude that the model is fit enough to be used.
+  
+  **2.** From linear model we noticed that Product Line, Product Quality and Competitive Pricing helps greatly to build brand image loyalty. Other two factor Order LifeCycle and Marketing is also very significant to predict Customer satisfaction.
+  
+  **3.** Though backtracking plot is not moving neck to neck but they are similar looking.
+  
+  **4.** Management should focus on those factors more on Marketing Material, Brand Image and Order Cycle as they are the most significant factor to predict Satisfaction.
+  
+*********************************************END****************************************************************************  
+  

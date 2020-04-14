@@ -1,0 +1,1011 @@
+---
+title: "Project -5 Predicting mode of Transport"
+author: "Shiladri Sarkar"
+date: "1/26/2020"
+output: html_document
+---
+
+## Problem Description:
+
+  Using the given dataset , which contains employee information like Age, Gender, Salary work experience we have to  create different machine learning model to predict whether or not an employee will use Car as a mode of transport.
+  
+  
+## Data Description:
+
+  Below are the Varibales we are going to use from Cellphone.xlsx file to predict the Churn variable, and there  description of different vatiable.
+    
+    1. Age - Age of Employee.
+  
+    2. Gender - Gender of employee(Male & Female)
+    
+    3. Engineer - Whether an employee is and Engineer or not.
+    
+    4. MBA - Whether an employee has MBA degree or not.
+    
+    5. Work Exp - Work Experience of an employee in years.
+    
+    6. Salary - Salary of an employee.
+    
+    7. Distance - Daily distance travelled by an employee.
+    
+    8. License - Whether an employee has license or not.
+    
+    9. Transport - Mode of transport used by employee.
+
+  
+```{r echo=TRUE}
+## Setting Working Directory and loading the data in r:
+setwd("E:/BABI Study Materials/Project - 5")
+data = read.csv("Cars_edited.csv")
+```
+  
+## External Library:
+
+  Below are the external Library Used in this project.
+  
+```{r echo=TRUE,message=FALSE,warning=FALSE}
+library(dplyr)
+library(gridExtra)
+library(grid)
+library(ggplot2)
+library(reshape2)
+library(caret)
+library(DMwR)
+library(car)
+library(glmnet)
+library(class)
+library(e1071)
+library(excelR)
+library(ROCR)
+library(ineq)
+library(ipred)
+library(rpart)
+library(xgboost)
+library(gbm)
+library(Ckmeans.1d.dp)
+```
+  
+
+## 1.1 & 1.2 EDA - Basic data summary, Univariate, Bivariate analysis, graphs, Check for Outliers and missing values and check the summary of the dataset & Illustrate the insights based on EDA.
+
+```{r echo=FALSE}
+cat('Structure of data \n')
+str(data)
+
+cat("Are there any missing value:\n")
+anyNA(data)
+
+cat("Name of the Colum contains missing value: \n")
+sapply(data,function(x) sum(is.na(x)))
+
+cat("Row number containing missing value: \n")
+apply(is.na(data), 2, which)
+
+cat("Number of unique value in each variable: \n")
+sapply(data,function(x) length(unique(x)))
+
+cat("Summary of data: \n")
+summary(data)
+
+cat("Variable Names: \n")
+colnames(data)
+
+##rename Work.Exp column name to remove dot
+
+names(data)[names(data) == "Work.Exp"] = "WorkExp"
+
+cat("Variable Names after update: \n")
+colnames(data)
+
+#dropping null value row as this has only one missing record
+
+cat("Dropping Missing value: \n")
+data = na.omit(data)
+
+cat("Are theere any missing value: \n")
+anyNA(data)
+```
+
+***Observations :***
+    
+    1. Given dataset contains contains 9 variables and 444 observations.
+    
+    2. It has only one missing value in MBA column at 145th position.
+    
+    3. Variable age has 25 , gender,engineer license has 2 unique values.Work exp has 24 salary has 122 and distance has 137 unique values.
+    
+    4. Renaming the variable Work.Exp to WorkExp for better readibility.
+    
+    5. Since there was only one missing value we removed it, and after hat we can see there are no missing value.
+    
+```{r echo=FALSE, fig.width=10}
+##plot Transport Mode
+
+plot1 = ggplot(data,aes(x=data$Transport,fill=data$Transport)) +
+  geom_bar(stat = "count") +xlab("Transport Mode") + ylab("Number of Person") + ggtitle("Count") + 
+  geom_text(aes(label = ..count..),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Transport Mode") +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5))
+
+
+data_table = data %>% 
+  group_by(Transport) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(per=`n`/sum(`n`)) %>% 
+  arrange(desc(Transport))
+
+data_table$label = scales::percent(data_table$per)
+
+plot2 = ggplot(data=data_table)+
+  geom_bar(aes(x="", y=per, fill=Transport), stat="identity")+
+  coord_polar("y", start=0) + 
+  theme_void()+
+  geom_text(aes(x=1, y = cumsum(per) - per/2, label=label),color="white", size=5.5) + ggtitle("Percentage") +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode")
+
+
+grid.arrange(plot1, plot2, ncol=2,top=textGrob("Distribution of user by Transport Mode",gp=gpar(fontsize=20,font=3,col="blue")))  ##library(gridExtra)
+
+```
+
+    6. From above plot we can see that majoritity of the people using Publick Transport folowed by 2 Wheelers and Car.
+    
+    7. Since our job is to predict if a customer is going to use Car as transport mode or not, i am going to label Car as 1 and 2wheeler and Public Transport as 0.
+    
+```{r echo=FALSE,fig.width=10}
+#convert target variable to 1 and 0 factor
+data$Transport = as.character(data$Transport)
+
+for(i in 1:nrow(data)){
+  if(data$Transport[i]=="Car"){
+    data$Transport[i]="1"
+  }
+  else{
+    data$Transport[i]="0"
+  }
+}
+
+data$Transport = as.factor(data$Transport)
+#summary(data$Transport)
+#prop.table(table(data$Transport))
+
+##plot the after adjusting the target variables
+
+plot3 = ggplot(data,aes(x=data$Transport,fill=data$Transport)) +
+  geom_bar(stat = "count") +xlab("Transport Mode") + ylab("Number of Person") + ggtitle("Count") + 
+  geom_text(aes(label = ..count..),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car")) +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5))
+
+data_table1 = data %>% 
+  group_by(Transport) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(per=`n`/sum(`n`)) %>% 
+  arrange(desc(Transport))
+
+data_table1$label = scales::percent(data_table1$per)
+
+plot4 = ggplot(data=data_table1)+
+  geom_bar(aes(x="", y=per, fill=Transport), stat="identity")+
+  coord_polar("y", start=0) + 
+  theme_void()+
+  geom_text(aes(x=1, y = cumsum(per) - per/2, label=label),color="white", size=5.5) + ggtitle("Percentage") +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car"))
+
+grid.arrange(plot3, plot4, ncol=2,top=textGrob("Distribution of user by Transport Mode after making adjustment",gp=gpar(fontsize=20,font=3,col="blue")))  ##library(gridExtra)
+
+```
+    
+    8. We can see that only 18.8% people using Car as transport mode where as 86.2% people using 2Wheeler & Public Transport as mode of transport.
+    
+    9. Converting Engineer, MBA, license to factors as they have only two lebels.
+    
+```{r echo=TRUE}
+data$Engineer = as.factor(data$Engineer)
+data$MBA = as.factor(data$MBA)
+data$license = as.factor(data$license)
+```
+    
+    10. Lest see distribution of categorical variable.
+    
+```{r echo=FALSE, fig.width=10}
+##Distribution of categorical variable
+
+data_table2 = data %>% 
+  group_by(Gender) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(per=`n`/sum(`n`)) %>% 
+  arrange(desc(Gender))
+
+data_table2$label = scales::percent(data_table2$per)
+
+plot21 = ggplot(data=data_table2)+
+  geom_bar(aes(x="", y=per, fill=Gender), stat="identity")+
+  coord_polar("y", start=0) + 
+  theme_void()+
+  geom_text(aes(x=1, y = cumsum(per) - per/2, label=label),color="white", size=4.5) + ggtitle("Gender") +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Gender")
+
+
+data_table3 = data %>% 
+  group_by(Engineer) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(per=`n`/sum(`n`)) %>% 
+  arrange(desc(Engineer))
+
+data_table3$label = scales::percent(data_table3$per)
+
+plot22 = ggplot(data=data_table3)+
+  geom_bar(aes(x="", y=per, fill=as.factor(Engineer)), stat="identity")+
+  coord_polar("y", start=0) + 
+  theme_void()+
+  geom_text(aes(x=1, y = cumsum(per) - per/2, label=label),color="white", size=4.5) + ggtitle("Engineer") +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Engineer",labels = c("No","Yes"))
+
+data_table4 = data %>% 
+  group_by(MBA) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(per=`n`/sum(`n`)) %>% 
+  arrange(desc(MBA))
+
+data_table4$label = scales::percent(data_table4$per)
+
+plot23 = ggplot(data=data_table4)+
+  geom_bar(aes(x="", y=per, fill=as.factor(MBA)), stat="identity")+
+  coord_polar("y", start=0) + 
+  theme_void()+
+  geom_text(aes(x=1, y = cumsum(per) - per/2, label=label),color="white", size=4.5) + ggtitle("MBA") +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "MBA",labels = c("No","Yes"))
+
+
+data_table5 = data %>% 
+  group_by(license) %>% 
+  count() %>% 
+  ungroup() %>% 
+  mutate(per=`n`/sum(`n`)) %>% 
+  arrange(desc(license))
+
+data_table5$label = scales::percent(data_table5$per)
+
+plot24 = ggplot(data=data_table5)+
+  geom_bar(aes(x="", y=per, fill=as.factor(license)), stat="identity")+
+  coord_polar("y", start=0) + 
+  theme_void()+
+  geom_text(aes(x=1, y = cumsum(per) - per/2, label=label),color="white", size=4.5) + ggtitle("License") +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "License",labels = c("No","Yes"))
+
+grid.arrange(plot21,plot22,plot23,plot24, ncol=2,top=textGrob("Distribution of Categorical Variable",gp=gpar(fontsize=20,font=3,col="blue")))
+
+```
+    
+    11. Majority of the people are male and has Engineering degree.
+    
+    12. Only 25% people has MBA degree and 23% people has license.
+    
+    13. Lest see the disribution of continious variable.
+    
+```{r echo=FALSE, fig.width=10}
+## Distribution of continuous variable
+
+plot25 = ggplot(data) + 
+  geom_histogram(aes(x=Salary,y=..density..), position="identity",bins = 30,col='white',fill='blue') + 
+  geom_density(aes(x=Salary,y=..density..),col='red',alpha=0.6,fill='purple') + ggtitle("Salary") +
+  theme(plot.title = element_text(colour = "Orange",face = "bold", hjust = 0.5))
+
+plot26 = ggplot(data) + 
+  geom_histogram(aes(x=Age,y=..density..), position="identity",bins = 20,col='white',fill='blue') + 
+  geom_density(aes(x=Age,y=..density..),col='red',alpha=0.6,fill='purple') + ggtitle("Age") +
+  theme(plot.title = element_text(colour = "Orange",face = "bold", hjust = 0.5))
+
+plot27 = ggplot(data) + 
+  geom_histogram(aes(x=WorkExp,y=..density..), position="identity",bins = 20,col='white',fill='blue') + 
+  geom_density(aes(x=WorkExp,y=..density..),col='red',alpha=0.6,fill='purple') + ggtitle("Work Experience") +
+  theme(plot.title = element_text(colour = "Orange",face = "bold", hjust = 0.5))
+
+plot28 = ggplot(data) + 
+  geom_histogram(aes(x=Distance,y=..density..), position="identity",bins = 30,col='white',fill='blue') + 
+  geom_density(aes(x=Distance,y=..density..),col='red',alpha=0.6,fill='purple') + ggtitle("Distance") +
+  theme(plot.title = element_text(colour = "Orange",face = "bold", hjust = 0.5))
+
+grid.arrange(plot25, plot26,plot27,plot28, ncol=2,top=textGrob("Distribution of Continuous Variables",gp=gpar(fontsize=20,font=3,col="purple")))
+
+```
+    
+    14. We can see that Age and Distance is normally distributed where as Salary and WorkExp are right skewed.
+    
+    15. Lest plot Distribution of Continuous variable against Transport Mode.
+    
+```{r echo=FALSE, fig.width=10}
+#### Distribution of Continuous variable against Transport Mode:
+
+plot13 = ggplot(data,aes(x = Age, fill = Transport)) + geom_histogram(bins = 50,col='white') +
+  theme(legend.position = "bottom") +
+  labs(title = "Age ", x = "Age") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car"))
+
+plot14 = ggplot(data,aes(x = WorkExp, fill = Transport)) + geom_histogram(bins = 50,col='white') +
+  theme(legend.position = "bottom") +
+  labs(title = "Work Experience ", x = "WorkExp") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car"))
+
+plot15 = ggplot(data,aes(x = Salary, fill = Transport)) + geom_histogram(bins = 50,col='white') +
+  theme(legend.position = "bottom") +
+  labs(title = "Salary ", x = "Salary") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car"))
+
+plot16 = ggplot(data,aes(x = Distance, fill = Transport)) + geom_histogram(bins = 50,col='white') +
+  theme(legend.position = "bottom") +
+  labs(title = "Distance Travel ", x = "Distance") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car"))
+
+grid.arrange(plot13, plot14,plot15,plot16, ncol=2,top=textGrob("Distribution of Continuous Variable against Transport Mode",gp=gpar(fontsize=20,font=3,col="purple")))
+
+```
+    
+    16. PLot and see Categorical variable bar plot against Transport Mode.
+    
+```{r echo=FALSE, fig.width=10,fig.height=10}
+## Categorical variable bar plot against Transport Mode:
+
+plot17 = ggplot(data,aes(x=data$Gender,fill=data$Transport)) +
+  geom_bar(stat = "count",position = "dodge") +xlab("Gender") + ylab("Number of Person") + ggtitle("Gender") + 
+  geom_text(aes(label = ..count..),stat = "count",vjust=0.1, color="black", size=5.5,position = position_dodge(width= 1)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car")) +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5))
+
+plot18 = ggplot(data,aes(x=data$Engineer,fill=data$Transport)) +
+  geom_bar(stat = "count",position = "dodge") +xlab("Engineer") + ylab("Number of Person") + ggtitle("Enigneer") + 
+  geom_text(aes(label = ..count..),stat = "count",vjust=0.1, color="black", size=5.5,position = position_dodge(width= 1)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car")) +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5))
+
+plot19 = ggplot(data,aes(x=data$MBA,fill=data$Transport)) +
+  geom_bar(stat = "count",position = "dodge") +xlab("MBA") + ylab("Number of Person") + ggtitle("MBA") + 
+  geom_text(aes(label = ..count..),stat = "count",vjust=0.1, color="black", size=5.5,position = position_dodge(width= 1)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car")) +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5))
+
+plot20 = ggplot(data,aes(x=data$license,fill=data$Transport)) +
+  geom_bar(stat = "count",position = "dodge") +xlab("Licence") + ylab("Number of Person") + ggtitle("Licence") + 
+  geom_text(aes(label = ..count..),stat = "count",vjust=0.1, color="black", size=5.5,position = position_dodge(width= 1)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car")) +
+  theme(legend.position = "bottom",plot.title = element_text(colour = "purple", face = "bold", hjust = 0.5))
+
+grid.arrange(plot17,plot18,plot19,plot20, ncol=2,top=textGrob("Distribution of Categorical Variable against Transport Mode",gp=gpar(fontsize=20,font=3,col="blue")))
+
+```
+    
+    17. Those people are mail , is engineer, has license, does not have MBA are more likely to use car as transport mode.
+    
+    18. Lest check Distribution of continuous varible and identify outlier information:
+    
+```{r echo=FALSE, fig.width=10}
+##Distribution of continuous varible and outlier information:
+## WorkExperience vs Transport Mode
+plot5 = ggplot(data,aes(y = WorkExp)) + geom_boxplot(col="purple") +
+  labs(title = "Univariate", y = "Work Experience") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+
+plot6 = ggplot(data,aes(x = Transport, y = WorkExp, fill = Transport)) + geom_boxplot() +
+  theme(legend.position = "bottom") +
+  labs(title = "Bivariate ", x = "Transport Mode", y = "Work Experience") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car"))
+
+grid.arrange(plot5, plot6, ncol=2,top=textGrob("Distribution of user Work Experience against Transport Mode",gp=gpar(fontsize=20,font=3,col="purple")))
+
+##  Age Vs TRansport MOde
+
+plot7 = ggplot(data,aes(y = Age)) + geom_boxplot(col="purple") +
+  labs(title = "Univariate", y = "Age") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+
+plot8 = ggplot(data,aes(x = Transport, y = Age, fill = Transport)) + geom_boxplot() +
+  theme(legend.position = "bottom") +
+  labs(title = "Bivariate ", x = "Transport Mode", y = "Age") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car"))
+
+grid.arrange(plot7, plot8, ncol=2,top=textGrob("Distribution of user Age against Transport Mode",gp=gpar(fontsize=20,font=3,col="purple")))
+
+##  Salary Vs TRansport Mode
+
+plot9 = ggplot(data,aes(y = Salary)) + geom_boxplot(col="purple") +
+  labs(title = "Univariate", y = "Salary") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+
+plot10 = ggplot(data,aes(x = Transport, y = Salary, fill = Transport)) + geom_boxplot() +
+  theme(legend.position = "bottom") +
+  labs(title = "Bivariate ", x = "Transport Mode", y = "Salary") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car"))
+
+grid.arrange(plot9, plot10, ncol=2,top=textGrob("Distribution of user Salary against Transport Mode",gp=gpar(fontsize=20,font=3,col="purple")))
+
+
+##  Distance Vs TRansport Mode
+
+plot11 = ggplot(data,aes(y = Distance)) + geom_boxplot(col="purple") +
+  labs(title = "Univariate", y = "Distance") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+
+plot12 = ggplot(data,aes(x = Transport, y = Distance, fill = Transport)) + geom_boxplot() +
+  theme(legend.position = "bottom") +
+  labs(title = "Bivariate ", x = "Transport Mode", y = "Distance") +
+  theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) +
+  scale_fill_discrete(name = "Transport Mode",labels = c("Public Transport & 2 Wheeler","Car"))
+
+grid.arrange(plot11, plot12, ncol=2,top=textGrob("Distribution of user Distance Travel against Transport Mode",gp=gpar(fontsize=20,font=3,col="purple")))
+
+```
+    
+    19. We can see all four continuous variable has outlier, and all of them are on the higher side.
+    
+    20. One interesting thing is when we compare them against transport mode we can see that those who using Car as transport mode does not have outlier.
+    
+    21. People with Higher Age,Salary,Expereince and Distance travelled are more likely to use Car.
+    
+    22. Convert gender to level:(1 = male, 0 = female)
+    
+```{r echo=TRUE}
+##Convert gender to level:(1 = male, 0 = female)
+data$Gender = as.character(data$Gender)
+
+for(i in 1:nrow(data)){
+  if(data$Gender[i]=="Male"){
+    data$Gender[i]="1"
+  }
+  else{
+    data$Gender[i]="0"
+  }
+}
+
+data$Gender = as.factor(data$Gender)
+summary(data$Gender)
+prop.table(table(data$Gender))
+```
+    
+
+## 1.3 EDA - Check for Multicollinearity - Plot the graph based on Multicollinearity & treat it.
+
+    1. We need to convert all the variable to numeric before creating corplot.
+```{r echo=FALSE, fig.width=10}
+str(data)
+newdata = data
+newdata[] = lapply(data, function(x) as.numeric(x))
+str(newdata)
+cor(newdata)
+
+cormat = round(cor(newdata),2)
+melted_cormat = melt(cormat)
+
+get_upper_tri = function(cormat){ cormat[lower.tri(cormat)] = NA 
+return(cormat) }
+
+upper_tri = get_upper_tri(cormat) 
+melted_cormat = melt(upper_tri, na.rm = TRUE)
+
+ggplot(melted_cormat, aes(Var2, Var1, fill = value))+ 
+  geom_tile(color = "white")+ 
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Correlation") + theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1))+ coord_fixed() + geom_text(aes(Var2, Var1, label = value), color = "black", size = 4) + theme(
+    axis.title.x = element_blank(), axis.title.y = element_blank(), panel.grid.major = element_blank(), panel.border = element_blank(), panel.background = element_blank(), axis.ticks = element_blank(), legend.justification = c(1, 0), legend.position = c(0.6, 0.7), legend.direction = "horizontal")+ guides(fill = guide_colorbar(barwidth = 7, barheight = 1, title.position = "top", title.hjust = 0.5))
+
+```
+
+    2. Noticed that Our target variable Transport mode has high correlation with Age,Work Exp and Salary which is good sign.
+    
+    3. Among independent variables Age ahs high correlation with Work Exp and Salary which is expected.
+    
+    4. We are not going to treat multicollinearity during model creatin depending on impact on each other.
+    
+    
+## 2. Data Preparation (SMOTE):
+
+    1. SMOTE stands for Synthetic Minority Oversampling Technique. This is a statistical technique for increasing the number of cases in your dataset in a balanced way. The module works by generating new instances from existing minority cases that you supply as input.
+    
+    2. Before applying smote lets treat outliers and create train and test data.
+    
+    3. Identify Outliers:
+```{r}
+boxplot(data$Age,plot = F)$out
+boxplot(data$WorkExp,plot = F)$out
+boxplot(data$Salary,plot = F)$out
+boxplot(data$Distance,plot = F)$out
+```
+    
+    4. All four variable has outliers where Salary has highest number of outlier.
+    
+    5. Lest See the outlier which are at 95% parcentile.
+    
+```{r}
+quantile(data$Age, c(0.95))
+quantile(data$WorkExp, c(0.95))
+quantile(data$Salary, c(0.95))
+quantile(data$Distance, c(0.95))
+```
+    
+    5. Treating the outlier:
+    
+        1. Replacing Outlier Age value with 37.
+        
+        2. Replacing WorkExp and Salary Outlier with their median values. (As they have more outlier)
+        
+        3. Replacing Distance  outliers with mean values.(Less number of outlier)
+    
+```{r}
+data$Age[which(data$Age>=quantile(data$Age, c(0.95)))] = 37
+data$WorkExp[which(data$WorkExp>quantile(data$WorkExp, c(0.95)))] = median(data$WorkExp)
+data$Salary[which(data$Salary>quantile(data$Salary, c(0.95)))] = median(data$Salary)
+data$Distance[which(data$Distance>=quantile(data$Distance, c(0.95)))] = mean(data$Distance)
+```
+    
+    6. Split the data in Train and Test Set (70%,30%):
+    
+```{r}
+set.seed(100) 
+carindex<-createDataPartition(data$Transport, p=0.7,list = FALSE,times = 1)
+traindata<-data[carindex,]
+testdata<-data[-carindex,]
+cat("Target Variable Split in Trainset :")
+table(traindata$Transport)
+prop.table(table(traindata$Transport))
+cat("Target Variable Split in Testset")
+table(testdata$Transport)
+prop.table(table(testdata$Transport))
+```
+    
+    7. Can see that both in Train and Test set Targer variable percentage is 13%.
+    
+    8. The number of records for people travelling by car is in minority(86% Vs 13%).Hence we need to use an appropriate sampling method on the train data. We will explore using SMOTE.
+    
+    9. Apply Smote to increase minority calss records.
+    
+```{r}
+set.seed(100)
+traindataSMOTE <- SMOTE(Transport ~ ., traindata, perc.over = 200,perc.under = 300)
+prop.table(table(traindataSMOTE$Transport))
+table(traindataSMOTE$Transport)
+```
+    
+    10. We can see that we have inceased the minority class to 33% without impacting the majority class.
+    
+    11. We did not went for 50-50 split because we didnt want to work with that huge amount of synthetic data in one class.
+    
+    
+## 3.1 Applying Logistic Regression & Interpret results:
+
+    1. We are goin to use cross validation method to create the LR model.
+    
+    2. Lest create the first model with all the dependent variable.
+    
+```{r warning=FALSE,fig.width=10}
+outcomevar='Transport'
+regressors=c("Age","WorkExp","Salary","Distance","license","Engineer","MBA","Gender")
+trainctrl=trainControl(method = 'repeatedcv',number = 10,repeats = 3)
+carsglm=train(traindataSMOTE[,regressors],traindataSMOTE[,outcomevar],method = "glm", family = "binomial",trControl = trainctrl)
+summary(carsglm$finalModel)
+vif(carsglm$finalModel)
+varImp(object = carsglm)
+plot(varImp(object = carsglm), main="Vairable Importance for Logistic Regression")
+```
+    
+    3. From above result we can see that variable Age, WorkExp,Salary,Distance and license are the most important feature to predict Transport Mode.
+    
+    4. Using variable inflaction factor(vif) we can see that Age and WorkExp are highly correlated and they are affecting the model. We noticed this high correlation earlier also.
+    
+    5. Lest Create out final model by using Age, Salary,Distance and License which are the most importance features to predict TRansport mode, and drop the highly correlated variable and non important variable.
+    
+```{r fig.width=10}
+##final model
+trainctrlgn=trainControl(method = 'cv',number = 10,returnResamp = 'none')
+carsglmnet=train(Transport~Age+Salary+Distance+license, data = traindataSMOTE, method = 'glmnet', trControl = trainctrlgn)
+carsglmnet
+varImp(object = carsglmnet)
+plot(varImp(object = carsglmnet), main="Vairable Importance for Logistic Regression - Post Ridge Regularization")
+
+predtest_glm=predict(object = carsglmnet,testdata[,regressors],type = "raw")
+table(testdata[,outcomevar],predtest_glm)
+
+```
+    
+    6. We can see the most important variable in this model is License followed by Age which we have seen in EDA as well.
+    
+    7. Our LR model is able to identify 16 out of 18 Positive value which is quite good.
+    
+## 3.2 Applying KNN Model & Interpret results:
+
+    1. Here also we are going to use cross validation method so that model can identify the best K value for our mode.
+    
+```{r}
+set.seed(100)
+knn_model = caret::train(Transport ~ .,
+                       method     = "knn",
+                       trControl = trainControl(method  = "cv", number  = 10),
+                       tuneGrid   = expand.grid(k = 2:10),
+                       metric     = "Accuracy",
+                       preProcess = c("center","scale"),
+                       data       = traindataSMOTE)
+
+knn_model
+
+plot(knn_model)
+
+varImp(object = knn_model)
+plot(varImp(object = knn_model), main="Vairable Importance for KNN MOdel")
+
+predict_knn_test = predict(knn_model,testdata[,regressors],type = "raw")
+table(testdata[,outcomevar],predict_knn_test)
+```
+    
+    2. From above result/accuracy plot we can see that best K value for the model is 3.
+    
+    3. Our Model is able to identify agan 16 out of 18 positive value correctly like LR mode.
+    
+    4. Since all the vaible were used  to prepare the model we can see that for KNN Age is the most important variable followed by salary work experience and license.
+    
+    
+## 3.3 Applying Naïve Bayes Model & Interpret results (is it applicable here? comment and if it is not applicable, how can you build an NB model in this case?)
+
+    1. Naive Bayes is a modeling technique used for solving classification problems where the Y variable can have more than two classes. When the independent variable is categorical, frequencies are used while for continuous variables, gaussian density function is used to compute the probabilities.
+
+    2. We are going to use function naiveBayes from package e1071 for creating the model(so we dont have to bother about continuous variable)
+
+    3. Applying the model in train dataset and validating result on test dataset.
+    
+```{r}
+NBayes = naiveBayes(Transport ~ .,data=traindataSMOTE)
+
+NBayes
+
+predict_NBayes_test = predict(NBayes,testdata[,regressors])
+cat("Confusion Matrix")
+table(testdata[,outcomevar],predict_NBayes_test)
+```
+    
+    4. From above result we can see that this is the best model so fa when it comes to predecting Positive case(17 out of 18 identified correctly)
+    
+    
+## 3.4 Confusion matrix interpretation:
+
+    1. Confusion matrix is going to help us indentify the True Positive (Sensitivity) Accuray, and True Negative(Specificity) of the mode.
+    
+    2. Lest printe the confusion matrix of all the three model and creae a tabular view.
+    
+
+```{r echo=FALSE,warning=FALSE,fig.width=10}
+#LR
+cat("Logistic Regressioon")
+table(testdata[,outcomevar],predtest_glm)
+lracu = round(((108+16)/(108+6+16+2)),2)
+lrsen = round((16/(16+2)),2)
+lrspe = round((108/(108+6)),2)
+
+#KNN
+cat("KNN")
+table(testdata[,outcomevar],predict_knn_test)
+knnacu = round(((105+16)/(105+9+16+2)),2)
+knnsen = round((16/(16+2)),2)
+knnspe = round((105/(105+9)),2)
+
+#NB
+cat("NBayes")
+table(testdata[,outcomevar],predict_NBayes_test)
+nbacu = round(((109+17)/(109+5+17+1)),2)
+nbsen = round((17/(17+1)),2)
+nbspe = round((109/(109+5)),2)
+
+Model_Name = c("Logistic Regression","KNN","Naive Bayes")
+Accuracy = c(lracu,knnacu,nbacu)
+Sensitivity = c(lrsen,knnsen,nbsen)
+Specificity = c(lrspe,knnspe,nbspe)
+M_Performance = data.frame(Model_Name, Accuracy, Sensitivity,Specificity)
+excelTable(M_Performance, minDimensions = c(ncol(M_Performance),nrow(M_Performance)))
+```
+    
+    3. From  above table we can say that Naive Bayes model is performaing best when it comes to Accuracy(95%), Sensitivity(94%),Specificity(96%).
+    
+
+## 3.5 Remarks on Model validation exercise <Which model performed the best>:
+
+    1. For Model validation we can use multiple parameted like Confusion Matrix, KS, AUC, GINI to measure individual performance.
+    
+    2. We have already seen that as per Confusion Matrix Naive Bayes model is performing best.
+    
+    3. Lest See KS, AUC and GINI value of LR model.
+    
+```{r echo=FALSE}
+## LR MOdel
+#KS
+
+pred1 = prediction(as.numeric(predtest_glm), as.numeric(testdata$Transport))
+perf1 = performance(pred1, "tpr", "fpr")
+KS1 = max(attr(perf1, 'y.values')[[1]]-attr(perf1, 'x.values')[[1]])
+KS1
+plot(perf1,main=paste0(' KS Score of LR Model is = ',round(KS1*100,1),'%'))
+lines(x = c(0,1),y=c(0,1))
+
+#AUC
+
+AUC1 = performance(pred1,"auc")
+AUC1 = as.numeric(AUC1@y.values)
+cat("\n AUC Score of LR MOdel is = ", AUC1)
+
+#GINI
+
+GINI1 = ineq(predtest_glm, type="Gini")
+cat("\n GINI Score of LR MOdel is = ", AUC1)
+```
+    
+    4. Lest See KS, AUC and GINI value of KNN model.
+    
+```{r echo=FALSE}
+####KNN
+
+#KS
+
+pred2 = prediction(as.numeric(predict_knn_test), as.numeric(testdata$Transport))
+perf2 = performance(pred2, "tpr", "fpr")
+KS2 = max(attr(perf2, 'y.values')[[1]]-attr(perf2, 'x.values')[[1]])
+KS2
+plot(perf2,main=paste0(' KS Score of KNN Model is = ',round(KS2*100,1),'%'))
+lines(x = c(0,1),y=c(0,1))
+
+#AUC
+
+AUC2 = performance(pred2,"auc")
+AUC2 = as.numeric(AUC2@y.values)
+cat("\n AUC Score of KNN MOdel is = ", AUC2)
+
+#GINI
+
+GINI2 = ineq(predict_knn_test, type="Gini")
+cat("\n GINI Score of KNN MOdel is = ", GINI2)
+
+```
+    
+    5. Lest See KS, AUC and GINI value of Naive Bayes model.
+    
+```{r echo=FALSE}
+###NB
+
+#KS
+
+pred3 = prediction(as.numeric(predict_NBayes_test), as.numeric(testdata$Transport))
+perf3 = performance(pred3, "tpr", "fpr")
+KS3 = max(attr(perf3, 'y.values')[[1]]-attr(perf3, 'x.values')[[1]])
+KS3
+plot(perf3,main=paste0(' KS Score of NBayes Model is = ',round(KS3*100,1),'%'))
+lines(x = c(0,1),y=c(0,1))
+
+#AUC
+
+AUC3 = performance(pred3,"auc")
+AUC3 = as.numeric(AUC3@y.values)
+cat("\n AUC Score of NBayes MOdel is = ", AUC3)
+
+#GINI
+
+GINI3 = ineq(predict_NBayes_test, type="Gini")
+cat("\n GINI Score of NBayes MOdel is = ", GINI3)
+```
+    
+    6. From above three model result(KS,AUC,GINI) we can say that Naive Bayes model is has the highest score compared to other two model.
+    
+
+## 3.6 Bagging:
+
+    1. Bootstrap aggregating, also called bagging, is a machine learning ensemble meta-algorithm designed to improve the stability and accuracy of machine learning algorithms used in statistical classification and regression. It also reduces variance and helps to avoid overfitting
+    
+    2. Lets create the model and see the result.
+    
+```{r}
+bag_mod = bagging(Transport ~.,
+                          data=traindataSMOTE,
+                          control=rpart.control(maxdepth=5, minsplit=2))
+
+
+
+bag_mod
+predtest_bag = predict(bag_mod, testdata)
+table(testdata$Transport,predtest_bag)
+```
+    
+    3. Looking at the confusion matrix we are not seeing any improvement comapred to previous three model.
+    
+    4. Lest See the KS,AUC and GINI values.
+    
+```{r echo=FALSE}
+bagauc = round(((110+16)/(110+4+16+2)),2)
+bagsen = round((16/(16+2)),2)
+bagspe = round((110/(110+4)),2)
+
+
+
+#KS
+
+pred4 = prediction(as.numeric(predtest_bag), as.numeric(testdata$Transport))
+perf4 = performance(pred4, "tpr", "fpr")
+KS4 = max(attr(perf4, 'y.values')[[1]]-attr(perf4, 'x.values')[[1]])
+KS4
+plot(perf4,main=paste0(' KS Score of Bagging Model is = ',round(KS4*100,1),'%'))
+lines(x = c(0,1),y=c(0,1))
+
+#AUC
+
+AUC4 = performance(pred4,"auc")
+AUC4 = as.numeric(AUC4@y.values)
+cat("\n AUC Score of Bagging Model is = ", AUC4)
+
+#GINI
+
+GINI4 = ineq(predtest_bag, type="Gini")
+cat("\n GINI Score of Bagging MOdel is = ", GINI4)
+
+```
+    
+    5. We can say that all the model performance measure is quite good.
+    
+    
+## 3.7 Boosting:
+
+    1. The term 'Boosting' refers to a family of algorithms which converts weak learner to strong learners. Boosting is an ensemble method for improving the model predictions of any given learning algorithm. The idea of boosting is to train weak learners sequentially, each trying to correct its predecessor.
+    
+    2. XGBoost works with matrices that contain all numeric variables.
+    
+    3. we also need to split the training data and label.
+    
+```{r}
+gd_traindata=as.matrix(data.matrix(traindataSMOTE[,-9]))
+gd_trainlable=as.matrix(data.matrix(traindataSMOTE[,9]))
+gd_testdata=as.matrix(data.matrix(testdata[,-9]))
+```
+    
+    4. In below code chunk we will playing around with all the values untill we find the best fitlet's play with shrinkage, known as eta in xbg.
+    
+```{r}
+tp_xgb = vector()
+tn_xgb = vector()
+lr = c(0.01,0.1,0.3,0.5,0.7,0.9,1)
+md = c(1,3,5,7,9,11,13,15)
+nr = c(5,50,100,1000,5000,10000)
+
+for (i in lr) {
+  for (x in md) {
+    for (z in nr) { 
+  
+  xgb_fit = xgboost(
+    data = gd_traindata,
+    label = gd_trainlable,
+    eta = i,
+    max_depth = x,
+    nrounds = z,
+    nfold = 5,
+    objective = "binary:logistic",  # for regression models
+    verbose = 0,               # silent,
+    early_stopping_rounds =10  # stop if no improvement for 10 consecutive trees
+  )
+  
+  gd_pred_test = predict(xgb_fit, gd_testdata)
+  tp_xgb = cbind(tp_xgb,sum(testdata$Transport==1 & gd_pred_test >= 0.5))
+  tn_xgb = cbind(tn_xgb,sum(testdata$Transport==0 & gd_pred_test < 0.5))
+  
+    }
+  }
+}
+
+table(tp_xgb)
+table(tn_xgb)
+table(testdata$Transport,gd_pred_test>=0.5)
+```
+    
+    5. From above we can see that best True positive count we can get is 16 and best true negative count we can get is 110.
+    
+    6. Using best threshhold lest create the best fit model.
+    
+```{r fig.width=10}
+##Best Fit
+
+      xgb_best_fit = xgboost(
+        data = gd_traindata,
+        label = gd_trainlable,
+        eta = 0.5,
+        max_depth = 5,
+        nrounds = 50,
+        nfold = 5,
+        objective = "binary:logistic",  # for regression models
+        verbose = 0,               # silent,
+        early_stopping_rounds =10  # stop if no improvement for 10 consecutive trees
+      )
+      
+gd_pred_test_best = predict(xgb_best_fit, gd_testdata)
+
+xgb.importance(model = xgb_best_fit)
+
+importance_matrix = xgb.importance(colnames(gd_traindata), model = xgb_best_fit)
+
+((gg = xgb.ggplot.importance(importance_matrix, measure = "Frequency", rel_to_first = TRUE)) + ggplot2::ylab("Frequency"))
+
+table(testdata$Transport,gd_pred_test_best>=0.5)
+
+```
+    
+    7. We can see that this is model is doing the best in terms of Accuracy. 16 out of 18 true positive identified correctly by the model and 112 out of 114 True negative was identified correctly by our model.
+    
+    8. Most important variables are Age folowed by Salary WorkExp etc.
+    
+    9. Lest see KS,AUC,GINI Values of the model.
+    
+```{r echo=FALSE}
+boostauc = round(((112+16)/(112+2+16+2)),2)
+boostsen = round((16/(16+2)),2)
+boostspe = round((112/(112+2)),2)
+
+#KS
+
+pred5 = prediction(as.numeric(gd_pred_test_best), as.numeric(testdata$Transport))
+perf5 = performance(pred5, "tpr", "fpr")
+KS5 = max(attr(perf5, 'y.values')[[1]]-attr(perf5, 'x.values')[[1]])
+KS5
+plot(perf5,main=paste0(' KS Score of Boosting is = ',round(KS5*100,1),'%'))
+lines(x = c(0,1),y=c(0,1))
+
+#AUC
+
+AUC5 = performance(pred5,"auc")
+AUC5 = as.numeric(AUC5@y.values)
+cat("\n AUC Score of Boosting is = ", AUC5)
+
+#GINI
+
+gd_pred_test_best_fit = ifelse(gd_pred_test_best>=0.5,1,0)
+GINI5 = ineq(gd_pred_test_best_fit, type="Gini")
+cat("\n GINI Score of Boosting is = ", GINI5)
+```
+    
+    10. AUC Score is best among all the models.
+    
+    
+## 4. Actionable Insights and Recommendations:
+
+```{r echo=FALSE, warning=FALSE}
+Models = c("Logistic Regression","KNN","Naive Bayes","Bagging","Boosting")
+Accuracy = c(lracu,knnacu,nbacu,bagauc,boostauc)
+Sensitivity = c(lrsen,knnsen,nbsen,bagsen,boostsen)
+Specificity = c(lrspe,knnspe,nbspe,bagspe,boostspe)
+KS = c(KS1,KS2,KS3,KS4,KS5)
+AUC = c(AUC1,AUC2,AUC3,AUC4,AUC5)
+GINI = c(GINI1,GINI2,GINI3,GINI4,GINI5)
+MM_Performance = data.frame(Models, Accuracy, Sensitivity,Specificity,KS,AUC,GINI)
+excelTable(MM_Performance, minDimensions = c(ncol(MM_Performance),nrow(MM_Performance)))
+```
+
+    1. After doing the basic EDA and preprocessing we created 5 different model.
+    
+    2. From the above table we can see that , as per accuracy Boosting is the best model folowed by Naive Bayes and Boosting.
+    
+    3. Important variables are Age, Work Exp, Distannce and license.
+    
+    4. People with higher age,Work Exp Salary and Distance travelled  more likely to use Car.
+    
+    5. People with license more likely to use Car as transport mode.
+    
+    6. Since data size was very small we should check overfitting with large amount of data.
+    
+    7. More sofisticated transformation can be used to treat outliers and missing values and data imbalance.
+    

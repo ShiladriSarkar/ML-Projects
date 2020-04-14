@@ -1,0 +1,786 @@
+---
+title: "Telecom Customer Churn Prediction"
+author: "Shiladri Sarkar"
+date: "12/25/2019"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+# Problem Description:
+
+  Customer attrition, also known as customer churn, customer turnover, or customer defection, is the loss of clients or customers.
+
+  Telephone service companies, Internet service providers, pay TV companies, insurance firms, and alarm monitoring services, often use customer attrition analysis and customer attrition rates as one of their key business metrics because the cost of retaining an existing customer is far less than acquiring a new one. Companies from these sectors often have customer service branches which attempt to win back defecting clients, because recovered long-term customers can be worth much more to a company than newly recruited clients.
+
+  Companies usually make a distinction between voluntary churn and involuntary churn. Voluntary churn occurs due to a decision by the customer to switch to another company or service provider, involuntary churn occurs due to circumstances such as a customer's relocation to a long-term care facility, death, or the relocation to a distant location. In most applications, involuntary reasons for churn are excluded from the analytical models. Analysts tend to concentrate on voluntary churn, because it typically occurs due to factors of the company-customer relationship which companies control, such as how billing interactions are handled or how after-sales help is provided.
+
+  predictive analytics use churn prediction models that predict customer churn by assessing their propensity of risk to churn. Since these models generate a small prioritized list of potential defectors, they are effective at focusing customer retention marketing programs on the subset of the customer base who are most vulnerable to churn.
+
+# Project Objective:
+
+ In this project, we simulate one such case of customer churn where we work on a data of postpaid customers with a contract. The data has information about the customer usage behavior, contract details and the payment details. The data also indicates which were the customers who canceled their service. Based on this past data, we need to build a model which can predict whether a customer will cancel their service in the future or not.
+ 
+ 1. Data Preparation: Basic EDA, Outlier, Summary, Relation between independent variables etc.
+ 
+ 2. Apply Logistc Regression, KNN and Naive Bayes Model to the dataset.
+ 
+ 3. Check various performance measure and find out the best model for this problem.
+ 
+ ***Note: ***Research has shown that the average monthly churn rate among the top 4 wireless carriers in the US is 1.9% - 2%.
+ 
+# Data Description:
+  Below are the Varibales we are going to use from Cellphone.xlsx file to predict the Churn variable, and there  description of different vatiable.
+
+```{r echo=FALSE,message=FALSE}
+library(excelR)
+setwd("E:/BABI Study Materials/Project - 4")
+library(xlsx)
+datadesc = read.xlsx("Cellphone.xlsx",1, header = TRUE)
+data = read.xlsx("Cellphone.xlsx",2, header = TRUE)
+backup_data = data
+options(warn=-1)
+excelTable(datadesc, minDimensions = c(ncol(datadesc),nrow(datadesc))) 
+```
+
+
+# External Library:
+
+  Below are the external Library Used in this project.
+  
+      1. xlsx
+      
+      2. excelR
+      
+      3. ggplot2
+      
+      4. scales
+      
+      5. dplyr
+      
+      6. caTools
+      
+      7. reshape2
+      
+      8. car
+      
+      9. caret
+      
+      10. ROCR
+      
+      11. e1071
+    
+    
+
+# 1. EDA:
+
+## 1.1 Basic data summary, Univariate, Bivariate analysis, graphs:
+
+```{r echo=FALSE}
+summary(data)
+
+str(data)
+
+cat("\n No of rows/Observation in dataset: ",nrow(data))
+
+cat("\n No of Column/Variables in dataset is:",ncol(data))
+
+cat("\n Column names given in the dataset are: ",colnames(data))
+
+```
+
+***Observations***
+
+    1.1.1 We can see that given dataset has 3333 observation and 11 Variables.
+  
+    1.1.2 All the variable loaded as numeric which is not right, there are few categorical variables such as Churn,ContractRenewal and DataPlan, we are going to convert them into categorical variable later.
+  
+    1.1.3 Looking at the summary , there seems to be outliers. We are going to explore them in next section.
+  
+### Converting Churn,ContractRenewal and DataPlan to categorical variable(factor):
+
+```{r echo=FALSE}
+data$Churn = as.factor(data$Churn)
+data$DataPlan = as.factor(data$DataPlan)
+data$ContractRenewal = as.factor(data$ContractRenewal)
+str(data)
+```
+
+    1.1.4 We cn see from above result that Churn,ContractRenewal and DataPlan succcessfully converted to factor.
+    
+    1.1.5 All of them have 2 levels 0 and 1.
+  
+### Univarient Analysis with graph:
+
+```{r echo=FALSE,message=FALSE}
+library(ggplot2)
+library(scales)
+library(reshape2)
+ggplot(data,aes(x=Churn, fill = data$Churn)) +
+  geom_bar(stat = "count") + xlab("Churn") + ylab("Number of Customer") + ggtitle("Distribution of cutomer by Churn") + geom_text(aes(label = percent(round(..count../nrow(data),2))),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Churn", labels = c("Continue","Discontinue")) +
+   theme(legend.position = "bottom",plot.title = element_text(hjust = 0.5)) 
+
+ggplot(data,aes(x=data$ContractRenewal, fill = data$ContractRenewal)) +
+  geom_bar(stat = "count") + xlab("Contract Renewal") + ylab("Number of Customer") + ggtitle("Distribution of cutomer by Contract Renewal") + geom_text(aes(label = percent(round(..count../nrow(data),2))),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Contract Renewal", labels = c("No","Yes")) +
+   theme(legend.position = "bottom",plot.title = element_text(hjust = 0.5)) 
+
+ggplot(data,aes(x=data$DataPlan, fill = data$DataPlan)) +
+  geom_bar(stat = "count") + xlab("Has Data Plan") + ylab("Number of Customer") + ggtitle("Distribution of cutomer by Data Plan") + geom_text(aes(label = percent(round(..count../nrow(data),2))),stat = "count",vjust=1.6, color="white", size=5.5) +
+  scale_fill_discrete(name = "Has Data Plan", labels = c("No","Yes")) +
+   theme(legend.position = "bottom",plot.title = element_text(hjust = 0.5)) 
+
+```
+
+    1.1.6 From above bar chars we can see that 86%  of customer Continues with the company where as only 14% customer discontinues.
+    
+    1.1.7 90% of customer recently renewed contract.
+    
+    1.1.8 Only 28% of customer has data pln, large number of customer does not use data plan.
+    
+
+### Bivarient Analysis with graph:
+
+
+```{r echo=FALSE,message=FALSE}
+library(dplyr)
+plot_data1 <- data %>% 
+  count(Churn, ContractRenewal) %>% 
+  group_by(ContractRenewal) %>% 
+  mutate(percent = n/sum(n))
+
+
+ggplot(plot_data1, aes(x = ContractRenewal, y = percent, fill = Churn)) + 
+  geom_col(position = "fill") + 
+  geom_label(aes(label = percent(percent)), position = "fill", color = "white", vjust = 1, show.legend = FALSE) +
+  scale_y_continuous(labels = percent) +
+  facet_grid(~ContractRenewal) +   scale_fill_discrete(name = "Churn", labels = c("No","Yes")) +
+   theme(legend.position = "bottom",plot.title = element_text(hjust = 0.5)) +ggtitle("Compararive plot of Churn and Contract Renewal")
+
+######
+
+plot_data2 <- data %>% 
+  count(Churn, DataPlan) %>% 
+  group_by(DataPlan) %>% 
+  mutate(percent = n/sum(n))
+
+
+ggplot(plot_data2, aes(x = DataPlan, y = percent, fill = Churn)) + 
+  geom_col(position = "fill") + 
+  geom_label(aes(label = percent(percent)), position = "fill", color = "white", vjust = 1, show.legend = FALSE) +
+  scale_y_continuous(labels = percent) +
+  facet_grid(~DataPlan) +   scale_fill_discrete(name = "Churn", labels = c("No","Yes")) +
+   theme(legend.position = "bottom",plot.title = element_text(hjust = 0.5)) +ggtitle("Compararive plot of Churn and has Data Plan")
+
+```
+
+    1.1.9 Among people who renewed Contract most of the people Continued and People who didnt renew contrct the number is equally distributed(57.6% and 42.4%)
+    
+    1.1.10 Data plan does not have any unusual relationship with Churn. As we can see most of the people who has data plan continued with the company.
+    
+    
+```{r echo=FALSE}
+ggplot(data,aes(x = Churn, y = AccountWeeks, fill = Churn)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Distribution Box Plot of Active Account and Churn", x = "Churn(Yes = 1 and No = 0)", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) 
+
+ggplot(data,aes(x = Churn, y = DataUsage, fill = Churn)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Distribution Box Plot of Data Usage and Churn", x = "Churn(Yes = 1 and No = 0)", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) 
+
+ggplot(data,aes(x = Churn, y = CustServCalls, fill = Churn)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Distribution Box Plot of CustServ Calls and Churn", x = "Churn(Yes = 1 and No = 0)", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5)) 
+
+ggplot(data,aes(x = Churn, y = DayMins, fill = Churn)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Distribution Box Plot of Avg Daytime Minutes Calls and Churn", x = "Churn(Yes = 1 and No = 0)", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+
+ggplot(data,aes(x = Churn, y = DayCalls, fill = Churn)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Distribution Box Plot of Avg NUmber of Daytime  Calls and Churn", x = "Churn(Yes = 1 and No = 0)", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+
+ggplot(data,aes(x = Churn, y = MonthlyCharge, fill = Churn)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Distribution Box Plot of MOnthly Charge and Churn", x = "Churn(Yes = 1 and No = 0)", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+
+ggplot(data,aes(x = Churn, y = OverageFee, fill = Churn)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Distribution Box Plot of Larget Overge Fee and Churn", x = "Churn(Yes = 1 and No = 0)", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+
+ggplot(data,aes(x = Churn, y = RoamMins, fill = Churn)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Distribution Box Plot of Avg Number of roaming minutes and Churn", x = "Churn(Yes = 1 and No = 0)", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+```
+
+    1.1.11 From Bove plots we can see that except Data Usage, Customer Service Calls and DayMins all other variables are exqually distributed between Churs(Continues and Discontinue)
+    
+***Note:*** Variable CustServCalls has 10 levels (0 to 9), We didnt convert it to categorical as categorical variable with more number of levels may create problem in model creation as for  category there will be 10 dummy column. Lest plot it as categorical variable again Churn.
+
+```{r echo=FALSE,fig.width=10}
+plot_data3 <- data %>% 
+  count(Churn,CustServCalls) %>% 
+  group_by(CustServCalls) %>% 
+  mutate(percent = n/sum(n))
+
+
+ggplot(plot_data3, aes(x = as.factor(CustServCalls), y = percent, fill = Churn)) + 
+  geom_col(position = "fill") + 
+  geom_label(aes(label = percent(percent)), position = "fill", color = "white", vjust = 1, show.legend = FALSE) +
+  scale_y_continuous(labels = percent) +
+  facet_grid(~as.factor(CustServCalls)) +   scale_fill_discrete(name = "Churn", labels = c("No","Yes")) +
+   theme(legend.position = "bottom",plot.title = element_text(hjust = 0.5)) +ggtitle("Compararive plot of Churn and Number of Calls")
+
+```
+    
+    1.1.12 We can see from the above plot that As number of call increases Churn percentage also increases.
+    
+    
+## 1.2 Check for Outliers and missing values and check the summary of the dataset:
+
+### Check for Missing Values:
+```{r}
+## Missing Value Check
+anyNA(data)
+#colSums(is.na(data))
+sapply(data,function(x) sum(is.na(x)))
+```
+  
+    1.2.1 From Above We can see that there are no missing Value in given dataset.
+    
+```{r}
+##Check for uniqie values
+sapply(data,function(x) length(unique(x)))
+```
+
+    1.2.2 There are 11 Variables , 1 Target and 10 independent vairable. Among them Churn, ContractRenewal,DataPlan has two unique values. CustServCalls Has 10 unique values.
+    
+### Check For Outliers:
+
+    1.2.3 We are goin to use box Plot to verify the outliers in the different Continuous variables it uses the blow forrmula to calculate Outlier:
+    
+    The Interquartile range (IQR) is the spread of the middle 50% of the data values.
+
+    Interquartile Range (IQR) = Upper Quartile (Q3) – Lower Quartile (Q1)
+
+    IQR = Q3 – Q1
+
+    Lower Limit = Q1 – 1.5 IQR.
+
+    Upper Limit = Q3 + 1.5 IQR
+    
+```{r echo=FALSE}
+ggplot(stack(data[-c(1,3,4)]),aes(x = ind,y = values, fill = ind)) + geom_boxplot() + theme(legend.position = "none") + labs(title = "Box Plot with outlier of all the continuous variables", x = "Variables", y = "values") + theme(plot.title = element_text(colour = "blue",face = "bold", hjust = 0.5))
+
+cat("\n There are 18 outlier Values in variable AccountWeeks: ", boxplot(data$AccountWeeks, plot = FALSE)$out)
+
+cat("\n There are 11 outlier Values in variable DataUsage: ", boxplot(data$DataUsage, plot = FALSE)$out)
+
+cat("\n There are huge amount of outlier Values in variable CustServCalls: ", boxplot(data$CustServCalls, plot = FALSE)$out)
+
+cat("\n There are 25 outlier Values in variable DayMins: ", boxplot(data$DayMins, plot = FALSE)$out)
+
+cat("\n There are 23 outlier Values in variable DayCalls: ", boxplot(data$DayCalls, plot = FALSE)$out)
+
+cat("\n There are lot of outlier Values in variable MonthlyCharge: ", boxplot(data$MonthlyCharge, plot = FALSE)$out)
+
+cat("\n There are lot of outlier Values in variable OverageFee: ", boxplot(data$OverageFee, plot = FALSE)$out)
+
+cat("\n There are lot of outlier Values in variable RoamMins: ", boxplot(data$RoamMins, plot = FALSE)$out)
+```
+
+    1.2.4 From above diagram we can see that all the continuous variable has outlier.
+    
+    1.2.5 Among them CustServCalls has the most number of outlier (we might need to change it ot factor later in the report after buliding the model and verifying the performance).MonthlyCharge, RoamMins also contains large number of outliers.
+    
+    1.2.6 Lest See summary of Data:
+    
+```{r}
+summary(data)
+```
+
+    1.2.7 Churn, ContractRenewal  and DataPlan are ctegorical variable with two levels.
+    
+    1.2.8 AccountWeeks is a continuous varies from 1 to 243 and has a mean of 101.1 and median 101.0.
+    
+    1.2.9 DataUsage also a continuous varies from 0 to 5.4 and has a mean of 0.82 and median 0 . Lets see why distribution of this variable is so different. For better visibility we have set the xlim value.
+    
+```{r echo=FALSE,message=FALSE}
+ggplot(data, aes(x = DataUsage)) + 
+  geom_density(aes(fill = Churn)) + xlim(-0.5,5)
+```
+    
+    1.2.10 We can see that when customer charn is Yes, grapth has peak betweekn 0 to 0.5
+    
+    1.2.11 DayMins varies from 0 to 350.8 with mean 178.8 and median 179.4.
+    
+    1.2.12 DayCalls varies from 0 to 165 with mean 100.4 and median 101.
+    
+    1.2.13 MonthlyCharg varies from 14 to 111.30 with mean 56.31 and median 53.10.
+    
+    1.2.14 OverageFee varies from 0 to 18.19 with mean 10.5 and median 10.7.
+    
+    1.2.15 RoamMins varies from 0 to 20 with mean 10.24 and median 10.30.
+    
+
+## 1.3 Check for Multicollinearity - Plot the graph based on Multicollinearity & treat it:
+
+### Check for Multicollinearity:
+
+    1.3.1 Lest see the corrleation between continuous(independent) variables after convertion.
+
+```{r}
+round(cor(data[-c(1,3,4)]),2)
+```
+
+    1.3.2 Now Lets See the correlation matrix of the raw dataset which we kept as as backup_data.
+    
+```{r}
+round(cor(backup_data),2)
+```
+
+***Observations from above cor matrix***
+
+    1.3.3 Contract Renewal has negative correlation(-0.26) with churn, but it is very low.
+    
+    1.3.4 MOnthly Charges has positiive correlation(0.78) with Data Usage which is intutive because if a cstomer uses data his/her monthly charge will go up.
+    
+    1.3.5 MOnthly charge has positive correlation(0.74) with Data Plan as well, which is comparable with previous point.
+
+    1.3.6 Overage fees also has positive correlation(0.28) with MOnthly Charge.
+    
+    1.3.7 MOnthly Charge alos has correlation with Daily Minutes which is als intutive as daily uses increases monthly charge also going to increase.
+    
+### Lets Polt and Visualize the Correlation:
+
+```{r echo=FALSE, fig.width=8}
+cormat = round(cor(backup_data),2)
+melted_cormat <- melt(cormat)
+
+get_upper_tri <- function(cormat){ cormat[lower.tri(cormat)]<- NA 
+return(cormat) }
+
+upper_tri <- get_upper_tri(cormat) 
+melted_cormat <- melt(upper_tri, na.rm = TRUE)
+
+ggplot(melted_cormat, aes(Var2, Var1, fill = value))+ 
+  geom_tile(color = "white")+ 
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Correlation") + theme_minimal()+ # minimal theme
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1))+ coord_fixed() + geom_text(aes(Var2, Var1, label = value), color = "black", size = 4) + theme(
+    axis.title.x = element_blank(), axis.title.y = element_blank(), panel.grid.major = element_blank(), panel.border = element_blank(), panel.background = element_blank(), axis.ticks = element_blank(), legend.justification = c(1, 0), legend.position = c(0.6, 0.7), legend.direction = "horizontal")+ guides(fill = guide_colorbar(barwidth = 7, barheight = 1, title.position = "top", title.hjust = 0.5))
+```
+
+    1.3.8 We can confirm the above points from the corplot as well.
+    
+    1.3.9 MOnthly Charge is correlate with multiple variables like DayMins, Data Usage, Data Plan.
+    
+    1.3.10 Data plan and data usage has the highest correlation 95%.
+    
+    1.3.11 During model building we will treat them/take corrective measure so that correlation does not affect our model.
+    
+
+## 1.4 Summarize the insights from EDA:
+
+    1.4.1 Given Cellphone Dataset has 11 Vairbales, We have to Predict Churn(two level 0 and 1) using other 10 variable which contains 8 Numeric and 2 Factor(Categorical) Variables.
+    
+    1.4.2 Our dataset does not have any missing values , so we dont have to do any missing value treatment.
+    
+    1.4.3 All the continuous variable has outliers but looks like none of the outliers are impacting the distribution of data .We can see that from data summary(mean and median value of all the variable is alomost same)
+    
+    1.4.4 There are some strong correlation between independent variable which we are going to treat during model building.
+
+    
+### Lstes Split data data set in to test(30%) and train(70%) for creating and validating out model.
+
+```{r}
+library(caTools)
+set.seed(100)
+split = sample.split(data$Churn, SplitRatio=0.7)
+traindata = subset(data, split==T)
+cat("\n Dimention of Train data: ",dim(traindata))
+testdata = subset(data, split==F)
+cat("\n Dimention of Test data: ",dim(testdata))
+```
+
+    1.4.6 After aplitting data lets see the distribution of target variable in both test and train dataset.
+    
+***Actual Dataset***
+    
+```{r}
+prop.table(table(data$Churn))
+
+```
+
+***Train Dataset***
+
+```{r}
+prop.table(table(traindata$Churn))
+```
+
+***Test Dataset***
+
+```{r}
+prop.table(table(testdata$Churn))
+```
+
+    1.4.7 We can say from above result that , target variable Churn has been equally distributed in all three dataset . 85% - Zero and 15% - One.
+
+
+# 2.1 & 2.2 Applying and Interpret Logistic Regression:
+
+    1. We are going to use glm to cretae logistic regression.
+    
+    
+```{r}
+library(car)
+lr1 = glm(Churn ~ AccountWeeks + ContractRenewal + DataPlan + DataUsage + CustServCalls + DayMins + DayCalls + MonthlyCharge + OverageFee + RoamMins,data = traindata, family = "binomial")
+lr1
+summary(lr1)
+vif(lr1)
+```
+    
+    2. From above result we can see that AccountWeeks,ContractRenewal1,DataPlan1,DataUsage coeficient are in negative that meansif these value decreases probability to churn increases.
+    
+    3. Vraible ContractRenewal,CustServCalls,DayCalls,RoamMins seems to be singnificant as they have very low p value.
+    
+    4. Intercept in negative.
+    
+    5. AIC score core is 1533 which is one of the model performance measure. Lower the value better the mode.
+    
+    6. From VIF(Variance Inflation Factor) score we can see that multiplr variable has VIF score greater than 4 which means they are making our model imbalanced.
+    
+    7. This is due to cor relation as we have seen in corplot that Variable Monthly Chage has correlation with Data PLan, Data Usage, DayMins, Overage Fees.
+    
+    8. Since MOnthly Charge has correlation with multiple variable, lets remove ait and build our model again.
+    
+```{r}
+lr2 = glm(Churn ~ AccountWeeks + ContractRenewal + DataPlan + DataUsage + CustServCalls + DayMins + DayCalls +  OverageFee + RoamMins ,data = traindata, family = "binomial")
+lr2
+summary(lr2)
+vif(lr2)
+```
+
+    9. We can see that this is an improved model compared to previous model but these are still few problems in this model which we need to adress.
+    
+    10. All the variable seems looks important excepr AccountWeeks,DataPlan and Data Usage.
+    
+    11. We can see that VIF score is high for DataPlan and DataUsage, we have seen that this two variable has 95% correlation. 
+    
+    12. In our next Model We are going to remove DataUsage and AccountWeeks(Does not seems be helpful in model prepartio)
+    
+```{r}
+lr3 = glm(Churn ~ ContractRenewal + DataPlan +  CustServCalls + DayMins + DayCalls +  OverageFee + RoamMins ,data = traindata, family = "binomial")
+lr3
+summary(lr3)
+vif(lr3)
+```
+
+    13. Now we can see that All the vairbale(ContractRenewal,DataPlan,CustServCalls,DayMins,DayCalls,OverageFee        ,RoamMins) used in this model(lr3) are highly significant and VIF score is also under threshold limit. We have an improved AIC score as well.
+    
+    14. We have to set a threshold for a model next to predict the Churn Value. Before that lets plot the acutal Churns valus vs fitted value.
+    
+```{r}
+plot(traindata$Churn,lr3$fitted.values)
+```
+    
+    15. From above graph we can see that if wwe give an threshold or around 15 we will be able to identify most of the people with CHurn value = 1(Discontinued). If required we can change the threshold to trade of sensitivity or specificity by looking at the confusion matrix.
+    
+    16. Lets do the predection in both in-saple data.
+    
+```{r}
+library(caret)
+lr3_train_pred = ifelse(lr3$fitted.values > 0.15 , "1" , "0")
+confusionMatrix(traindata$Churn,as.factor(lr3_train_pred),positive="1")
+```
+
+    
+    17. Lets do the predection in both out-of-saple data(testdata).
+    
+```{r}
+pred_test_lr = predict(lr3,newdata = testdata, type = "response")
+lr3_test_pred = ifelse(pred_test_lr > 0.15 , "1" , "0")
+confusionMatrix(testdata$Churn,as.factor(lr3_test_pred),positive = "1")
+```
+    
+    18. From bove we cn see tht our logistic regreion model is performing good in both training and testing data. We aare going to discuss the confusion matrix in details in ***2.7*** Section.
+    
+
+# 2.3 & 2.4 Applying and Interpret KNN Model:
+
+    1. One of the main prerequisit of KNN(K nearest Neighbour) algorith is that we have to mormalize our data.
+    
+    2. We will  use trainControl() method to control the parameter of the train() method.
+    
+    3. method parameter used for cv for cross-validation.
+    
+    4. number parameter implies number of resampling iterations.It automatically iterates through different values of “k” and identifies the optimal value.
+    
+    5. NOrmalizing the data.
+    
+```{r}
+scale = preProcess(traindata, method = "range") #Scaling data
+
+traindata.norm = predict(scale, traindata)
+testdata.norm = predict(scale, testdata)
+head(traindata.norm)
+head(testdata.norm)
+```
+    
+    6. Building knn model in train dataset.
+    
+```{r}
+knn_train_fit = train(Churn ~., data = traindata.norm, method = "knn",
+                 trControl = trainControl(method = "cv", number = 3),
+                 tuneLength = 20)
+
+knn_train_fit
+plot(knn_train_fit)
+```
+    
+    7. From above result we can see that accuracy is maximum(90%) when k is 7, From graph also we can confirm that.
+    
+    8. Lets predict using the CHurn value using train dataset.
+    
+```{r}
+pred_knn_train = predict(knn_train_fit, data = traindata.norm[-1], type = "raw")
+confusionMatrix(traindata.norm$Churn,pred_knn_train,positive="1")
+
+library(ROCR)
+predROC1 = ROCR::prediction(as.numeric(traindata.norm[,1]), as.numeric(pred_knn_train))
+perf1 = performance(predROC1, "tpr", "fpr")
+plot(perf1)
+as.numeric(performance(predROC1, "auc")@y.values)
+```
+    
+    9. We can see we are getting very good accuracy 92% in train dataset. And Area under curve is 92%.
+    
+    10. Predecting Chrun using test dataset.
+    
+```{r}
+pred_knn_test = predict(knn_train_fit, newdata = testdata.norm[-1], type = "raw")
+confusionMatrix(testdata.norm$Churn,pred_knn_test,positive="1")
+
+predROC2 = ROCR::prediction(as.numeric(testdata.norm[,1]), as.numeric(pred_knn_test))
+perf2 = performance(predROC2, "tpr", "fpr")
+plot(perf2)
+as.numeric(performance(predROC2, "auc")@y.values)
+```
+    
+    11. Model is doing good in test dataset as well in terms of sensitivity and accuracy.Area under curve is 86% approx.
+    
+# 2.5 & 2.6 - Applying and Interpret Naive Bayes Model:
+
+    1. Naive Bayes is a modeling technique used for solving classification problems where the Y variable can have more than two classes. When the independent variable is categorical, frequencies are used while for continuous variables, gaussian density function is used to compute the probabilities.
+    
+    2. We are going to use function naiveBayes from package e1071 for creating the model.
+    
+    3. Applying the model in train dataset.
+    
+```{r}
+library(e1071)
+NBayes = naiveBayes(Churn ~ .,data=traindata.norm)
+NBayes
+```
+    
+    4. We can see A-priori probabilities of Churn value in train dataset, which is 85% and 15%.
+    
+    5. Conditional probabilities can be interpreted like, probability of ContractRenewal given probability of Churn.Conditional distribution of ContractRenewal given 0 has a mean of 0.27 and standard deviation(sd) 0.72.
+    
+    6. Naive Bayes requires to specify these distribution but it does not require to specify joint distribution.
+    
+    7. Lets check the performance in training data and plot the ROC curve.
+    
+```{r}
+pred_nb_train = predict(NBayes, newdata = traindata.norm[-1])
+confusionMatrix(as.factor(pred_nb_train), as.factor(traindata.norm$Churn),positive="1")
+
+predROC3 = ROCR::prediction(as.numeric(traindata.norm[,1]), as.numeric(pred_nb_train))
+perf3 = performance(predROC3, "tpr", "fpr")
+plot(perf3)
+as.numeric(performance(predROC3, "auc")@y.values)
+```
+    
+    8. Accurace of our model in train data is 87% but AUC score is 77%.
+    
+    9. Lets check the performance in test data and plot the ROC curve.
+    
+```{r}
+pred_nb_test = predict(NBayes, newdata = testdata.norm[-1])
+confusionMatrix(as.factor(pred_nb_test), as.factor(testdata.norm$Churn),positive="1")
+
+predROC4 = ROCR::prediction(as.numeric(testdata.norm[,1]), as.numeric(pred_nb_test))
+perf4 = performance(predROC4, "tpr", "fpr")
+plot(perf4)
+as.numeric(performance(predROC4, "auc")@y.values)
+
+```
+    
+    10. Accuracy of NB model in test set is 87% and AUC score is 75%.
+    
+# 2.7 Confusion matrix interpretation for all models:
+
+    1. Using confusion matrix we can idnetify accuracy , sensitivity, specificity of the mode. Our Priority is to identify more people with CHurn value as 1.
+    
+    2. In coming section weare going to explain confusion matrix of three different model which we created.
+    
+    ***3. Confusion matrix of Logistic Regression model.***
+    
+```{r,echo=FALSE}
+cat('Confusion Matrix of Training dataset :\n')
+
+tab1 = as.matrix(confusionMatrix(traindata$Churn,as.factor(lr3_train_pred),positive="1"))
+tab1
+
+cat("\n Accuracy on train data is :",sum(diag(tab1))/sum(tab1))
+cat("\n Sensitivity on training data :",(252/(252+86)))
+cat("\n Specificity on training data :",(1538/(1538+457)))
+
+cat("\n Confusion Matrix of Test dataset :\n")
+
+tab2 = as.matrix(confusionMatrix(testdata$Churn,as.factor(lr3_test_pred),positive = "1"))
+tab2
+
+cat("\n Accuracy on test data is :",sum(diag(tab2))/sum(tab2))
+cat("\n Sensitivity on training data :",(106/(106+39)))
+cat("\n Specificity on training data :",(668/(668+187)))
+```
+    
+    4. From Training dataset we can see that out of 338 Churn=1 value our model identified 252 correctly and 86 incorrectly. Overall accuracy is 77%.
+    
+    5. From Test dataset we can see that out of 145 Churn=1 value our model identified 106 correctly and 39 incorrectly. Overall accuracy is 77%.
+    
+    6. Sensitivity(prediction probability of 1) of on traning data is 74 and on test 73%.
+    
+    ***7. Confusion matrix of KNN model.***
+    
+```{r,echo=FALSE}
+cat('Confusion Matrix of Training dataset :\n')
+
+tab3 = as.matrix(confusionMatrix(traindata.norm$Churn,pred_knn_train,positive="1"))
+tab3
+
+cat("\n Accuracy on train data is :",sum(diag(tab3))/sum(tab3))
+cat("\n Sensitivity on training data :",(172/(172+166)))
+cat("\n Specificity on training data :",(1979/(1979+16)))
+
+cat("\n Confusion Matrix of Test dataset :\n")
+
+tab4 = as.matrix(confusionMatrix(testdata.norm$Churn,pred_knn_test,positive="1"))
+tab4
+
+cat("\n Accuracy on test data is :",sum(diag(tab4))/sum(tab4))
+cat("\n Sensitivity on training data :",(56/(56+89)))
+cat("\n Specificity on training data :",(842/(842+13)))
+```
+    
+    8. From Training dataset we can see that out of 338 Churn=1 value our model identified 172 correctly and 166 incorrectly. Overall accuracy is 91%.
+    
+    9. From Test dataset we can see that out of 145 Churn=1 value our model identified 56 correctly and 89 incorrectly. Overall accuracy is 90%.
+    
+    10. Sensitivity(prediction probability of 1) of on traning data is 50 and on test 39%.
+    
+    ***11. Confusion matrix of Naive Bayes model.*** 
+    
+```{r echo=FALSE}
+cat('Confusion Matrix of Training dataset :\n')
+
+tab5 = as.matrix(confusionMatrix(as.factor(traindata.norm$Churn),as.factor(pred_nb_train), positive="1"))
+tab5
+
+cat("\n Accuracy on train data is :",sum(diag(tab5))/sum(tab5))
+cat("\n Sensitivity on training data :",(115/(115+223)))
+cat("\n Specificity on training data :",(1934/(1934+61)))
+
+cat("\n Confusion Matrix of Test dataset :\n")
+
+tab6 = as.matrix(confusionMatrix(as.factor(testdata.norm$Churn),as.factor(pred_nb_test), positive="1"))
+tab6
+
+cat("\n Accuracy on test data is :",sum(diag(tab6))/sum(tab6))
+cat("\n Sensitivity on training data :",(40/(105+40)))
+cat("\n Specificity on training data :",(830/(830+25)))
+```
+    
+    12. From Training dataset we can see that out of 338 Churn=1 value our model identified 115 correctly and 223 incorrectly. Overall accuracy is 88%.
+    
+    13. From Test dataset we can see that out of 145 Churn=1 value our model identified 40 correctly and 105 incorrectly. Overall accuracy is 87%.
+    
+    14. Sensitivity(prediction probability of 1) of on traning data is 34% and on test 27%.
+    
+# 2.8 Interpretation of other Model Performance Measures for logistic <KS, AUC, GINI>
+
+    1. We are going to calculate variaous model performance measure:
+    
+    2. AUC(Area Under the Curve) on Train Data & Test Data:AUC is an abbrevation for area under the curve. It is used in classification analysis in order to determine which of the used models predicts the classes best. An example of its application are ROC curves. Here, the true positive rates are plotted against false positive rates
+    
+```{r,echo=FALSE}
+pred1 = predict(lr3, data=traindata, type="response")
+predObj5 = prediction(pred1,as.numeric(traindata$Churn))
+perf5 = ROCR::performance(predObj5,"tpr","fpr")
+plot(perf5)
+auc1 = performance(predObj5,"auc"); 
+auc1 = as.numeric(auc1@y.values)
+cat("\n AUC Value of train dataset : ", auc1)
+
+pred2 = predict(lr3, newdata = testdata, type="response")
+predObj6 = prediction((pred2),as.numeric(testdata$Churn))
+perf6 = ROCR::performance(predObj6,"tpr","fpr")
+plot(perf6)
+auc2 = performance(predObj6,"auc"); 
+auc2 = as.numeric(auc2@y.values)
+cat("\n AUC Value of test dataset : ", auc2)
+```
+    
+    2. Calculate KS value in Train and Test Data:It is the highest separation between the Cumulative Good Rate and Cumulative Bad Rate. Higher the KS, better is the model (higher separation between good and bad). KS values can range between 0 -100%, KS values greater than 20% are considered acceptable for a model.
+    
+```{r}
+KS1 = max(perf5@y.values[[1]]-perf5@x.values[[1]])
+cat("\n KS Value of Train dataset : ", KS1)
+
+KS2 = max(perf6@y.values[[1]]-perf6@x.values[[1]])
+cat("\n KS Value of Test dataset : ", KS2)
+```
+    
+    3. Gini value of Train and Test data:Gini coefficient is a ratio of two areas,the area between the ROC curve and the random model line.
+    
+```{r}
+gini1 = (2 * auc1) - 1
+cat("\n Gini Value of Train dataset : ", gini1)
+gini2 = (2 * auc2) - 1
+cat("\n Gini Value of Test dataset : ", gini2)
+```
+    
+    4. Lets dispplay them as table :
+    
+```{r echo=FALSE,message=FALSE}
+Performance_Measure = c("KS","AUC","GINI")
+Train_Score = c(KS1,auc1,gini1)
+Test_Score = c(KS2,auc2,gini2)
+P_Table = data.frame(Performance_Measure, Train_Score, Test_Score)
+excelTable(P_Table, minDimensions = c(ncol(P_Table),nrow(P_Table))) 
+```
+    
+    5. We can see that Performance measure is relatively better in Train dataset compared to test as expected.
+    
+# 2.9 Remarks on Model validation exercise <Which model performed the best>:
+
+    1. For businesss we are going to present the performance not only based on accuracy of over all model . We are going to present the individual Sensitivity and Specificity. Since model perofrmance are judged depending on performance of test data.
+    
+    2. Lest See the below table Contains Accuracy Snesitivity and Specificity of three Model on Test Dataset.
+    
+```{r echo=FALSE,message=FALSE}
+MOdel_Name = c("Logistic Regression","KNN","Naive Bayes")
+Accuracy = c(sum(diag(tab2))/sum(tab2),sum(diag(tab4))/sum(tab4),sum(diag(tab6))/sum(tab6))
+Sensitivity = c((106/(106+39)),(56/(56+89)),(40/(105+40)))
+Specificity = c((668/(668+187)),(842/(842+13)),(830/(830+25)))
+M_Performance = data.frame(MOdel_Name, Accuracy, Sensitivity,Specificity)
+excelTable(M_Performance, minDimensions = c(ncol(M_Performance),nrow(M_Performance))) 
+```
+    
+    3. We can see that accuracy of all three model is almost same but when it comes to Sensitivity we can see that LR model is doing doing way better than other two model.
+    
+# 3. Actionable Insights and Recommendations:
+
+
+    1. From the above example, we can see that Logistic Regression, KNN and KNive Bayes can be used for customer churn analysis for this particular dataset equally fine. Though Performance from Logistic Regression sems to be better when it comes to predecting CHurn.
+    
+    2. One of the variable(Account Weeks) from gievn dataset does not have any impact to predict Churn.
+    
+    3. Features such as , ContractRenewal, DataPlan, CustService, DayMinutes and Overgae Fees appear to play big role in customer churn.
+    
+    4. Unsatisfied customer seems to call more number of time to customer Service.
+    
+    5. If people are using dataplan, there is less probability of leaving.
+    
+    6. More number of Variable Such as Age, Gender, Area could have helped to create better model with more accracy.
+    
+    7. KNN ans Knive Bayes model seems to be overfitting as performance drastically drops in test dataset.
+    
+    8. More sophisticated algorithm like Decision tree, Random forest can be used to predict more number of unsatisfied customer.
+

@@ -1,0 +1,298 @@
+---
+title: "Hackathon"
+author: "Shiladri Sarkar"
+date: "3/14/2020"
+output: html_document
+---
+
+
+```{r}
+setwd("E:/BABI Study Materials/Hackathon/Bank")
+banks  = read.csv("train_set.csv",header=TRUE, na.strings="")
+#test = read.csv("test_set.csv")
+```
+
+
+```{r warning=FALSE}
+library(knitr)      # web widget
+library(tidyverse)  # data manipulation
+library(data.table) # fast file reading
+library(caret)      # rocr analysis
+library(ROCR)       # rocr analysis
+library(kableExtra) # nice table html formating 
+library(gridExtra)  # arranging ggplot in grid
+library(rpart)      # decision tree
+library(rpart.plot) # decision tree plotting
+library(caTools)    # split 
+```
+
+
+```{r}
+summary(banks)
+```
+
+```{r}
+banks$month[is.na(banks$month)] = "dec"
+```
+
+
+```{r}
+##check for duplicate data
+banks$marital = as.character(banks$marital)
+banks$job = as.character(banks$job)
+banks$education = as.character(banks$education)
+banks$default = as.character(banks$default)
+banks$housing = as.character(banks$housing)
+banks$loan = as.character(banks$loan)
+banks$contact = as.character(banks$contact)
+banks$day_of_week = as.character(banks$day_of_week)
+banks[banks == 'unknown'] = NA
+banks$marital = as.factor(banks$marital)
+banks$job = as.factor(banks$job)
+banks$education = as.factor(banks$education)
+banks$default = as.factor(banks$default)
+banks$housing = as.factor(banks$housing)
+banks$loan = as.factor(banks$loan)
+banks$contact = as.factor(banks$contact)
+banks$day_of_week = as.factor(banks$day_of_week)
+sum(duplicated(banks))
+```
+
+
+
+
+```{r}
+#missing value variables
+sapply(banks, function(x) sum(is.na(x)))
+```
+
+
+```{r fig.width=16}
+##Create New Column To Indicate Missing Detection
+banks.clean = banks
+banks.clean$missing = !complete.cases(banks.clean)
+```
+
+```{r}
+#Missing Numeric Value Treatment
+
+#Replace with Average
+
+banks.clean$age[is.na(banks.clean$age)] = mean(banks$age, na.rm=T)
+banks.clean$duration[is.na(banks.clean$duration)] = mean(banks$duration, na.rm=T)
+banks.clean$previous[is.na(banks.clean$previous)] = mean(banks$previous, na.rm=T)
+banks.clean$campaign[is.na(banks.clean$campaign)] = mean(banks$campaign, na.rm=T)
+banks.clean$cons.price.idx[is.na(banks.clean$cons.price.idx)] = mean(banks$cons.price.idx, na.rm=T)
+banks.clean$cons.conf.idx[is.na(banks.clean$cons.conf.idx)] = mean(banks$cons.conf.idx, na.rm=T)
+```
+
+
+```{r fig.width=20}
+banks.clean$pdays[is.na(banks.clean$pdays)] = as.numeric(names(sort(-table(banks$pdays)))[1])
+banks.clean$emp.var.rate[is.na(banks.clean$emp.var.rate)] = as.numeric(names(sort(-table(banks$emp.var.rate)))[1])
+banks.clean$euribor3m[is.na(banks.clean$euribor3m)] = as.numeric(names(sort(-table(banks$euribor3m)))[1])
+banks.clean$nr.employed[is.na(banks.clean$nr.employed)] = as.numeric(names(sort(-table(banks$nr.employed)))[1])
+```
+
+```{r}
+for(i in 1:nrow(banks.clean)){
+  if(banks.clean$pdays[i]==999){
+    banks.clean$pdays[i]="No"
+  }
+  else  {
+    banks.clean$pdays[i]="Yes"
+  }
+}
+
+banks.clean$pdays = as.factor(banks.clean$pdays)
+```
+
+
+```{r}
+#Missing Categorical Treatment
+#Replace with Special Category
+banks.clean$job = fct_explicit_na(banks.clean$job, "missing")
+banks.clean$marital = fct_explicit_na(banks.clean$marital, "missing")
+banks.clean$education = fct_explicit_na(banks.clean$education, "missing")
+banks.clean$default = fct_explicit_na(banks.clean$default, "missing")
+banks.clean$loan = fct_explicit_na(banks.clean$loan, "missing")
+banks.clean$contact = fct_explicit_na(banks.clean$contact, "missing")
+banks.clean$poutcome = fct_explicit_na(banks.clean$poutcome, "missing")
+banks.clean$housing = fct_explicit_na(banks.clean$housing, "missing")
+banks.clean$month = fct_explicit_na(banks.clean$month, "missing")
+banks.clean$day_of_week = fct_explicit_na(banks.clean$day_of_week, "missing")
+```
+
+```{r}
+#After imputation, certain rows became identical hence need to be deduplicated.
+banks.clean = banks.clean %>% distinct
+```
+
+
+
+```{r}
+nrow(banks)
+```
+
+```{r}
+nrow(banks.clean)
+```
+
+
+```{r}
+#There is no more duplicated rows
+
+sum(duplicated(banks.clean))
+```
+
+
+
+
+```{r}
+sapply(banks.clean, function(x) sum(is.na(x)))
+```
+
+```{r}
+levels(banks.clean$job)
+```
+
+```{r}
+#How Many Rows Had Missing Data Before Cleaning
+sum(banks.clean$missing)
+
+banks.clean$Term = as.factor(banks.clean$Term)
+```
+
+
+```{r}
+#Display Those Rows That Had Missing Data Before
+
+banks.clean %>% filter(missing==T) %>% head %>% kable
+```
+
+```{r}
+banks.clean$loan = as.character(banks.clean$loan)
+
+for(i in 1:nrow(banks.clean)){
+  if(banks.clean$loan[i]=="0"){
+    banks.clean$loan[i]="missing"
+  }
+}
+
+banks.clean$loan = as.factor(banks.clean$loan)
+```
+
+
+```{r}
+summary(banks.clean)
+```
+
+```{r}
+banks = banks.clean
+str(banks)
+```
+
+```{r}
+head(banks)
+```
+
+```{r}
+prop.table(table(banks$Term))
+```
+
+```{r}
+summary(banks$age)
+```
+
+
+```{r}
+banks.clean %>% 
+  group_by(education) %>% 
+  summarize(pct.yes = mean(Term=="1")*100) %>% 
+  arrange(desc(pct.yes))
+```
+
+```{r}
+banks.clean %>% 
+  group_by(campaign) %>% 
+  summarize(contact.cnt = n(), pct.con.yes = mean(Term=="1")*100) %>% 
+  arrange(desc(contact.cnt)) %>% 
+  head() 
+```
+
+```{r}
+banks %>% select(duration) %>% arrange(desc(duration)) %>% head
+```
+
+```{r}
+# split into training and testing
+#summary(banks)
+set.seed(123)
+split = sample.split(banks$Term,SplitRatio = 0.70)
+training_set = subset(banks, split == TRUE)
+test_set = subset(banks, split == FALSE)
+
+# scale
+training_set[c(2,12,13,15,17,18,19,20,21)] = scale(training_set[c(2,12,13,15,17,18,19,20,21)])
+test_set[c(2,12,13,15,17,18,19,20,21)] = scale(test_set[c(2,12,13,15,17,18,19,20,21)])
+
+training_set = training_set[-1]
+#test_set = test_set[-1]
+```
+
+
+
+
+```{r}
+#sapply(training_set, function(x) sum(is.na(x)))
+library(randomForest)
+rndForest = randomForest(Term ~ ., data = training_set, ntree = 201, mtry = 3, nodesize = 10, importance = TRUE )
+print(rndForest)
+plot(rndForest)
+```
+
+```{r}
+set.seed(3000)
+tRndForest = tuneRF(x = training_set[,-21],y = training_set$Term, mtryStart = 3, stepFactor = 1.5, ntreeTry = 51, improve = 0.0001, nodesize = 10, trace = TRUE, plot = TRUE,doBest = TRUE, importance = T)
+```
+
+```{r}
+DTpredTest2 = predict(tRndForest, newdata = test_set[,c(-1,-22)], type = "class")
+tab4 = table(test_set$Term, DTpredTest2)
+tab4
+sum(diag(tab4))/sum(tab4)
+```
+```{r}
+#gd_traindata=as.matrix(data.matrix(training_set[,-21]))
+#gd_trainlable=as.matrix(data.matrix(training_set[,21]))
+#gd_testdata=as.matrix(data.matrix(test_set[,c(-1,-22)]))
+#gd_testlable = as.matrix(data.matrix(test_set[,22]))
+
+```
+
+
+```{r}
+#library(xgboost)
+# xgb_best_fit = xgboost(
+#        data = gd_traindata,
+#        label = gd_trainlable,
+##        eta = 0.1,
+#        max_depth = 3,
+#        nrounds = 31,
+#        nfold = 5,
+#        objective = "binary:logistic",  # for regression models
+#        verbose = 0,               # silent,
+#        early_stopping_rounds =10  # stop if no improvement for 10 consecutive trees
+#      )
+#      
+#gd_pred_test_best = predict(xgb_best_fit, gd_testdata)
+
+```
+
+```{r}
+#tab5= table(gd_testlable,gd_pred_test_best>=0.50)
+#tab5
+#sum(diag(tab5))/sum(tab5)
+
+```
+

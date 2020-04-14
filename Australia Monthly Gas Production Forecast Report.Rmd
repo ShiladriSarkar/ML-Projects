@@ -1,0 +1,674 @@
+---
+title: "Australia Monthly Gas Production Forecast Report"
+author: "Shiladri Sarkar"
+date: "29/02/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Project Objective:
+
+    1. This project is to analyze Australian Monthly Gas production dataset “Gas” in package “Forecast”. Monthly gas production of Australia between year 1956–1995 is released by Australian Bureau of Statistics which is in time series format.
+    
+    2. Objective is to read the data and do various analysis on same using reading, plotting, observing and conducting applicable tests.
+    
+    3. Model building and to forecast for 12 months is also expected in this project using ARIMA and Auto Arima models.
+    
+    4. We must come up with best model for our prediction by comparing performance measures of the models.
+
+
+## Datta Description:
+
+    Given dataset (in package forecast) contains three variable.
+    
+    1. Year
+    
+    2. Month 
+    
+    3. Gas Production : Gas Production during the specific Month and Year.
+    
+## Assumption:
+
+    • The Sample size is adequate to perform techniques applicable for time series dataset.
+    
+    • All the necessary packages are installed in R(if not need to install).
+    
+    • Dataset/File to be used for this project is available in R package Forecast.
+    
+    • Figure/Plot size might influence our decision as it varies from size to size.
+    
+## Additional Libraries Used:
+
+    1. fpp2
+    
+    2. TSA
+    
+    3. forecast
+    
+    4. TSstudio
+    
+    5. tseries
+    
+## 1. Read the data as a time series object in R. Plot the data:
+
+    1. Cleaning of environment and Memory(garbage collection).
+    
+    A call of gc causes a garbage collection to take place. This will also take place automatically without user intervention, and the primary purpose of calling gc is for the report on memory usage.
+
+    However, it can be useful to call gc after a large object has been removed, as this may prompt R to return memory to the operating system
+
+```{r echo=TRUE}
+rm(list = ls())
+gc()
+```
+
+    2. Reading the dataset from package forecast.
+    
+```{r echo=TRUE,warning=FALSE}
+library(forecast)
+gasTS = gas
+```
+    
+    3. Check the structure and other details of the gasTS data.
+    
+```{r echo=TRUE}
+str(gasTS)
+class(gasTS)
+start(gasTS)
+end(gasTS)
+frequency(gasTS)
+cycle(gasTS)
+head(gasTS)
+```
+    
+    • There are 476 rows/observation in the dataset.
+    
+    • Data type if the dataset is Time Series.
+    
+    • Start of the series is 1956 Month 1(January).
+    
+    • End of the series is 1995 Month 8(August).
+    
+    • Frequency of the series is 12.
+    
+    • Number of features in the dataset is One.
+    
+    4. Summary of the data.
+    
+```{r echo=TRUE}
+summary(gasTS)
+```
+    
+    • Minumum value is 1646 and Maxumum is 66600 with Mean 21415 and median 16788.
+    
+***Next Plot the Data***
+
+    5. Given Time Series is a Monthly series, lets create two more Series Quarterly Yearly series for visualization purpous.
+    
+```{r echo=TRUE}
+QgasTS = aggregate(gasTS, nfrequency=4) # Quarterly
+YgasTS= aggregate(gasTS, nfrequency=1) # Yearly
+
+```
+    
+    6. Normal plot of Monthly, Quarterly and Yearly Gas production.
+    
+```{r echo=FALSE, fig.height=10, fig.width=10}
+par(mfrow=c(3,1)) 
+plot.ts(gasTS,main = "Monthly Gas Production in Australia", xlab = "Time", ylab = "Gas Production")
+plot.ts(QgasTS,main = "Quarterly Gas Production in Australia", xlab = "Time", ylab = "Gas Production")
+plot.ts(YgasTS,main = "Yearly Gas Production in Australia", xlab = "Time", ylab = "Gas Production")
+
+```
+    
+    7. Saeason Plot:
+    
+```{r echo=FALSE, fig.height=6, fig.width=10, warning=FALSE}
+library(fpp2)
+seasonplot(gasTS, year.labels = TRUE, year.labels.left=TRUE, col=1:40, pch=20, main = "Seasonplot of Monthly Gas Production in Australia", xlab = "Time", ylab = "Gas Production")
+```
+    
+    8. Month Plot:
+    
+```{r fig.width=10,echo=FALSE}
+monthplot(gasTS, main = "Month plot of Gas Production in Australia", xlab = "Time", ylab = "Gas Production")
+```
+    
+    9. Lag Plot:
+    
+```{r fig.width=10,echo=FALSE}
+gglagplot(gasTS)
+```
+    
+    10. Box Plot:
+    
+```{r echo=FALSE, fig.width=10}
+boxplot(gasTS ~ cycle(gasTS), xlab = "Time", ylab = "Gas Production", main = "Box plot of Monthly Gas Production in Australia")
+```
+    
+    11. Autocorrelation Plots:
+    
+```{r echo=FALSE,fig.width=10,fig.height=4}
+autoplot(gasTS)
+par(mfrow=c(1,2)) 
+acf(gasTS)
+pacf(gasTS)
+```
+    
+## 2. Observation on plots and component presence in time series:
+
+  ***1. Normal Plot:***
+    
+    Plot shows two patterns:
+    • an overall positive trend
+    There is a clear and increasing trend. The sudden drop at the start of each year needs to be investigated in order to find what cause this effect at the end of the calendar year.
+    
+    • a zig-zag seasonal pattern.
+    There is also a strong seasonal pattern that increases in size as the level of the series increases. Any forecasts of this series would need to capture the seasonal pattern, and the fact that the trend is changing slowly.
+    
+   ***2. Seasonal Plot:***
+    
+    • A seasonal plot allows the underlying seasonal pattern to be seen more clearly, and is especially useful in identifying years in which the pattern changes. In this case, it is clear that there is a jump in sales in July , August each year., 2012 and 2013. The data also show a considerable increase of sales for 2013. Over all the graph also show an increased trend starting on June 2012.
+    
+   ***3. Month Plot:***
+   
+    • The horizontal lines indicate the means for each month. This form of plot enables the underlying seasonal pattern to be seen clearly and shows the changes in seasonality over time. It is especially useful in identifying changes within seasons.
+    
+  ***4. Lag Plot:***
+
+    • Here the colors indicate the month of the variable on the vertical axis. The lines connect points in chronological order. The relationship is strongly positive at lag 12, reflecting the strong seasonality in the data.
+    
+  **5. Autocorrelation Plot:***  
+  
+    • By looking at the correlogram, we noticed that all correlations are above the blue lines, which indicate that the correlations are significantly different from zero.The slow decrease in the ACF as the lags increase is due to the trend, while the “scalloped” shape is due the seasonality.
+    
+    • When data have a trend, the auto correlations for small lags tend to be large and positive because observations nearby in time are also nearby in size. So the ACF of trended time series tend to have positive values that slowly decrease as the lags increase.
+    
+    • When data are seasonal, the auto correlations will be larger for the seasonal lags (at multiples of the seasonal frequency) than for other lags.
+    
+    • When data are both trended and seasonal, you see a combination of these effects.
+    
+From exploratory analysis we can say that the dataset “gasTS” has trend and seasonality component present in its time series.
+
+## 3. Exploring Periodicity of dataset:
+
+Time series object are an ordered sequence of values (data points) of variables at equally spaced time interval. It is in time domain.
+
+There are couple of methods to detect periodicity of timeseries object. Below are 2 which is used in this project for detection of periodicity.
+
+    • DFT Identify the underlying periodic patterns by transforming into the frequency domain.
+    
+    • Autocorrelation: Correlate the signal with itself.
+    
+    1. Periodicity check by computing Fourier transform:
+    
+    • A Fourier analysis is a method for expressing a function as a sum of periodic components, and for recovering the function from those components.
+    
+    • When both the function and its Fourier transform are replaced with discretized counterparts, it is called the discrete Fourier transform (DFT).
+    
+***Before that lets create a new Series starting from 1970 as instructed***
+    
+```{r echo=FALSE,fig.width=10}
+newgas <- ts(gasTS, start=c(1970,1),end=c(1995,8), frequency=12) 
+library(TSA)
+p = periodogram(newgas)
+```
+    
+    The periodogram shows the “power” of each possible frequency, and we can clearly see spikes between 0 and 0.1, frequency close to 0 is high then decreasing effect then at frequency 0.07 Hz
+    
+```{r}
+data = data.frame(freq=p$freq,spec=p$spec)
+order = data[order(-data$spec),]
+top2 = head(order,2)
+top2 # Display the two highest "power frequency"
+time = 1/top2$f # Convert frequenncy to time period
+time
+```
+    
+    The main periodicity detected is 320 days. A secondary periodicity of 160 days was also found. So, it is concluded that it has monthly and annually periodicity
+    
+    We can do Periodicity check by Auto Correlation:
+    
+```{r echo=FALSE,fig.width=10}
+library(TSstudio)
+acf(newgas)
+par(mfrow=c(1,2)) 
+ts_lags(newgas)
+ts_lags(newgas, lags = c(12, 24, 36, 48))
+
+```
+    
+    • By looking at the correlogram, we noticed that all correlations are above the blue lines, which indicate that the correlations are significantly different from zero.The slow decrease in the ACF as the lags increase is due to the trend, while the “scalloped” shape is due the periodicity.
+    
+    • When data have a trend, the auto correlations for small lags tend to be large and positive because observations nearby in time are also nearby in size. So the ACF of trended time series tend to have positive values that slowly decrease as the lags increase.
+    
+    • When data are periodical , the auto correlations will be larger for the periodic lags (at multiples of the seasonal frequency) than for other lags.
+    
+    It concludes that there is periodicity in dataset which is annual for sure.
+    
+## 4. Is the time series Stationary? Inspect visually as well as conduct an ADF test? Write down the null and alternate hypothesis for the stationarity test? De-seasonalise the series if seasonality is present:
+
+Time series are classified to be stationary if mean , variance covariance of series is not function of time and is constant.
+
+There are various methods to check if time series is stationary or not. Below are few which is used in this project.
+
+    • Observing plots : Review time series plot of gas for obvious trend and seasonality .
+    
+    • Summary Statistics: Review of summary statistics of data for season or random portions and check for differences.
+    
+    • Statistical tests like Dickey Fuller test (ADF) and check p value to be within 0.05.
+    
+```{r echo=FALSE,fig.width=10}
+par(mfrow=c(2,2)) 
+plot.ts(newgas)
+plot.ts(aggregate(newgas,FUN=mean))
+boxplot(newgas ~ cycle(newgas))
+
+```
+    
+    
+***Observations from above plots***
+
+    • The year on year trend clearly shows that the gas distribution have been increasing without fail.
+    
+    • The variance and the mean value in July and August is much higher than rest of the months.
+    
+    • Even though the mean value of each month is quite different their variance is small. Hence, we have strong seasonal effect with a cycle of 12 months or less.
+    
+    • By visual inspecting it is clear that time series is not stationary.
+    
+***Dickey Fuller test to check stationarity***
+
+    Statistical tests help us to make conclusion about the data. They can only be used to inform the degree to which a null hypothesis can be accepted or rejected. The result must be interpreted for a given problem to be meaningful. ADF tests the null hypothesis that a unit root is present in time series. ADF statistic is a negative number and more negative it is the stronger the rejection of the hypothesis that there is a unit root.
+    
+***Null Hypothesis H0 and Alternate Hypothesis H1***
+
+    Null Hypothesis (H0): If accepted, it suggests the time series has a unit root, meaning it is non-stationary. It has some time dependent structure.
+    
+    Alternate Hypothesis (H1): The null hypothesis is rejected; it suggests the time series does not have a unit root, meaning it is stationary.
+    
+    • p-value > 0.05: Accept H0, the data has a unit root and is non-stationary .
+    
+    • p-value ≤ 0.05: Reject H0. the data does not have a unit root and is stationary.
+
+```{r}
+library(tseries)
+adf.test(newgas)
+```
+
+    ADF test statistics confirms that p value is more than 0.05 which means that data has unit root and is non stationary . Thus we cannot reject Null Hypothesis H0.
+    
+***De-seasonalize the time series***
+
+A time series decomposition is procedure which transform a time series into multiple different time series. The original time series is often computed (decompose) into 3 sub-time series:
+
+    • Seasonal: patterns that repeat with fixed period of time.
+    
+    • Trend: the underlying trend of the metrics.
+    
+    • Random: (also call “noise”, “Irregular” or “Remainder”) Is the residuals of the time series after allocation into the seasonal and trends time series.
+    
+    • Other than above three component there is Cyclic component which occurs after long period of time
+To get a successful decomposition, it is important to choose between the additive or multiplicative model. To choose the right model we need to look at the time series.
+
+    a. The additive model is useful when the seasonal variation is relatively constant over time.
+    b. The multiplicative model is useful when the seasonal variation increases over time.
+    
+Multiplicative decomposition is more prevalent with economic series because most seasonal economic series do have seasonal variations which increase with the level of the series.
+
+Rather than choosing either an additive or multiplicative decomposition, we could transform the data beforehand. We will start with decomposing the series into its three components - the trend, seasonal and random components. The ts_decompose function provides an interactive inference for the decompose function
+
+```{r echo=FALSE, fig.width=10}
+ts_decompose(newgas)
+```
+
+We can observe that the trend of the series is fairly flat up to 1980 and afterward start to increase. Also, it seems from the trend plot that it is not linear. You can note from both the series and decompose plots that the series has a strong seasonal pattern along with a non-linear trend. We will use the ts_seasonal, ts_heatmap and ts_surface functions to explore the seasonal pattern of the series:
+
+```{r echo=FALSE,fig.width=10}
+ts_seasonal(newgas,type = "all")
+```
+
+The ts_seasonal function provides three different views of the seasonality of the series (when the type argument is equal to all): 
+
+    • Split and plot the series by the full frequency cycle of the series, which in the case of monthly series is a full year. This view allows you to observe and compare the variation of each frequency unit from year to year. The plot’s color scale set by the chronological order of the lines (i.e., from dark color for early years and bright colors for the latest.
+    
+    • Plot each frequency unit over time, and in the case of monthly series, each line represents a month of consumption over time. This allows us to observe if the seasonal pattern remains the same over time. 
+    
+    • Last but not least, is box-plot representative of each frequency unit, which allows us to compare the distribution of each frequency unit. 
+    
+The main observations from this set of plots are: 
+    
+    • The structure of the seasonal pattern remain the same over the years - high consumption through the June July August, low through the start of year then fall post August.
+    
+    • The distribution of the consumption during the June July August is wider than the ones throughout the rest of the year. 
+    
+    • The series is growing from year to year.
+    
+To get a more clear view of the seasonal pattern of the series, you may want to remove the series growth (or detrend) and replot it:
+
+Remove the seasonal and trend effect and perform ts_decompose Test on “newgas”
+
+```{r echo=FALSE,warning=FALSE,fig.width=10}
+ts_seasonal(newgas - decompose(newgas)$trend,type = "all",title = "Decomposed seasonal plot")
+```
+
+***STL method to de-seasonalize time series***
+
+STL is a very versatile and robust method for decomposing time series. STL is an acronym for “Seasonal and Trend decomposition using Loess”. It does an additive decomposition and the four graphs are the original data, seasonal component, trend component and the remainder.
+
+```{r echo=TRUE, fig.width=10}
+par(mfrow=c(2,1)) 
+gas_season1 = stl(newgas, s.window = 'p') #Sonstant Seasonality 
+gas_season2 = stl(newgas, s.window = 7) # changing seasonality
+```
+
+
+```{r echo=FALSE, fig.width=10}
+par(mfrow=c(1,2))
+plot(gas_season1)
+plot(gas_season2)
+```
+
+If the focus is on figuring out whether the general trend of demand is up, we deseasonalize, and possibly forget about the seasonal component. However, if you need to forecast the demand in next month, then you need take into account both the secular trend and seasonality.
+
+
+```{r echo=TRUE,fig.width=10}
+DSgas = (gas_season1$time.series[,2] + gas_season2$time.series[,3])
+ts.plot(DSgas,newgas,col=c('red','blue'),main="Comparison of Deseason gas and Original gas data")
+```
+
+  Above shows the Actual time series in blue and de-seasonalized timeseries in Red.
+  
+##  Develop an ARIMA Model to forecast for next 12 periods. Use both manual and auto.arima (Show & explain all the steps):
+
+Autoregressive Integrated Moving Average (ARIMA) models include an explicit statistical model for the irregular component of a time series, that allows for non-zero autocorrelations in the irregular component. ARIMA models are defined for stationary time series so time series need to be stationary or converted to Stationary.
+
+Lets us split the data into train and test data set:
+
+```{r echo=TRUE,fig.width=10,fig.height=4}
+Traindata <- window(newgas, start=c(1970,1), end=c(1993,12), frequency=12) 
+Testdata <- window(newgas, start=c(1994,1), frequency=12) 
+ts_info(Traindata)
+ts_info(Testdata)
+par(mfrow=c(1,2)) 
+plot.ts(Traindata)
+plot.ts(Testdata)
+
+```
+
+***Step1:*** Check for Stationarity of Traindata using ADF test:
+
+```{r echo=TRUE}
+adf.test(newgas)
+```
+
+    P value is greater than 0.05 hence Null Hypothesis is retained , hence gas data is non-stationary; the average gas production changes through time.
+    
+***Step2 : ***Lest De-seasonalize the data using stl and observe it:
+    
+```{r echo=TRUE,fig.width=10}
+decom = stl(newgas,s.window = "periodic")
+deseason_demand = seasadj(decom)
+plot(decom)
+plot(deseason_demand)
+acf(newgas)
+acf(newgas, lag.max = 100)
+pacf(newgas, lag.max = 100)
+```
+
+Fromabve AFC plot we can see that auto correlation comes down below blue line only after 88th lag but if we see the partial auto correlation plot till 14th lag there are auto correlation since only 1 is significance we are goin to use one.
+
+***Step 3 :***As for the Arima model it is mandatory for a series to be stationary, hence the next step is to perform difference transformation and observe through the plot if the series is stationary or not. We can Use unit root test if unsure.
+
+Apply Difference 1 on data “gas” then check p_value again using ADF test.
+
+```{r echo=TRUE,fig.width=10}
+diff_newgas <- diff((newgas),differences = 1) 
+ts_plot(diff_newgas)
+
+```
+
+    
+From the above plot, new series looks like stationary. Let’s perform Dicky Fuller(ADF) test on the differenced series to confirm the same:
+
+```{r echo=TRUE}
+adf.test(diff_newgas,alternative = "stationary")
+```
+
+ADF test statistics confirms that p value is less than 0.05 for difference of 1 which means that the data does not have a unit root and is stationary. Thus we reject Null Hypothesis H0.
+
+We got (difference) d value as 1 , lets get ACF plot – q and PACF plot – p values .
+
+***Step4: ***ACF and PACF plots for p and q value:
+
+    Function Acf computes an estimate of the autocorrelation function of a (possibly multivariate) time series.
+
+    Function Pacf computes an estimate of the partial autocorrelation function of a (possibly multivariate) time series.
+    
+```{r echo=TRUE,fig.width=10,fig.height=4}
+#par(mfrow=c(1,2))
+acf(diff_newgas,lag.max = 50,main = "ACF for Differenced Series")
+pacf(diff_newgas,lag.max=50,main = "PACF for Differenced Series")
+```
+    
+ACF plots display correlation between the series and its lags. Most of lines are significant(autocorrelation) as they are beyond 2 blue lines 3rd and 9th line is significant and then couple more . Look for spikes at specific lag points of the difference series , highest spike is at 12
+
+In PACF plot also , Most of lines are significant as they are beyond 2 blue lines. Look for spikes at specific lag points of the difference series , highest spike is at 6 then at 12.
+
+
+***Step5: *** ARIMA:
+```{r echo=FALSE}
+
+## For testing purpose to find out best values.
+#aic = vector()
+#one = c(1,2,3,4,5,6)
+#two = c(1,2,3,4,5,6)
+
+#for (i in one) {
+#  for (x in two) {
+
+#auto.arima(Traindata, seasonal=TRUE)
+##Arima(Traindata, c(2, 1, 2),seasonal = list(order = c(0,1,1), period = 12))
+#arima.fit1<-arima(x = Traindata, order = c(i, 1, x), seasonal = list(order = c(0, 1, 1), period = 12))
+###tsdisplay(residuals(arima.fit1),lag.max = 20,main = ' (1,1,2)Seasonal model residuals')
+#aic = cbind(aic, arima.fit1$aic)
+#  }
+#}
+
+#aic
+```
+
+  After running few combination of order we noticed that order = (2,1,2) is giving the best AIC Score.
+  
+```{r echo=TRUE,fig.width=10}
+fit1 = Arima(Traindata, order = c(2, 1, 2),seasonal = list(order = c(0, 1, 1), period = 12))
+summary(fit1)
+tsdisplay(residuals(fit1),lag.max = 20,main = ' (2,1,2)Seasonal model residuals')
+```
+  
+Lest plot actual vs Forecast value.
+
+```{r echo=FALSE,fig.width=10}
+plot(fit1$x,col="blue") 
+lines(fit1$fitted,col="red",main="Actual vs Forecast")
+
+```
+
+***Step6 :*** Box-Ljung Test:
+
+    This test is done to Check if the residuals are independent before using the model for forecasting.
+    
+    Null Hypothesis:H0: = Residuals are independent.
+    Alternate Hypothesis:Ha: = Residuals are not independent.
+    
+    p-value < 0.05 lets you reject of the null-hypothesis, but a p-value > 0.05 does not let you confirm the null-hypothesis.
+    
+```{r echo=TRUE}
+Box.test(fit1$residuals, type = c("Ljung-Box"))
+```
+    
+From above result/p-value we can conclude that "Do not reject H0: Residuals are independent" so our model is valid.
+
+***Step 7: *** Auto ARIMA:
+
+Autoregressive Integrated Moving Average (ARIMA) models include an explicit statistical model for the irregular component of a time series, that allows for non-zero autocorrelations in the irregular component. ARIMA models are defined for stationary time series.
+	
+As the series has seasonality, hence in the auto arima function seasonality is assumed to be true.
+
+
+```{r echo=TRUE,fig.width=10}
+fit2 = auto.arima(Traindata, seasonal=TRUE)
+summary(fit2)
+tsdisplay(residuals(fit2),lag.max = 20,main = 'Seasonal model residuals of auto ARIMA')
+```
+
+Since Auto ARIMA model giving order(1,1,1) Seasonality. Lest create a Arima odel with this value.
+
+```{r echo=Traindata,fig.width=10}
+fit3 = Arima(Traindata, order = c(1, 1, 1),seasonal = list(order = c(0, 1, 1), period = 12))
+summary(fit3)
+tsdisplay(residuals(fit3),lag.max = 20,main = ' (1,1,1)Seasonal model residuals')
+plot(fit3$x,col="blue") 
+lines(fit3$fitted,col="red",main="Actual vs Forecast")
+```
+
+Box-Ljung Test on new model:
+
+    This test is done to Check if the residuals are independent before using the model for forecasting.
+    
+    Null Hypothesis:H0: = Residuals are independent.
+    Alternate Hypothesis:Ha: = Residuals are not independent.
+    
+    p-value < 0.05 lets you reject of the null-hypothesis, but a p-value > 0.05 does not let you confirm the null-hypothesis.
+    
+```{r}
+Box.test(fit3$residuals, type = c("Ljung-Box"))
+```
+    
+From above result/p-value we can conclude that "Do not reject H0: Residuals are independent" so our model is valid.
+
+***Step 8: *** Actual vs Forecast plot.
+
+    1. Train Data:
+    
+```{r}
+VecA1 = cbind(fit3$fitted,fit3$x)
+MAPEA_train = mean(abs(VecA1[,1]-VecA1[,2])/VecA1[,1]) 
+cat("MAPE Value of train data: ",MAPEA_train)
+
+```
+    
+    2. Test Data:
+    
+```{r}
+Arimatest = forecast(fit3, h=20)
+VecA2 = cbind(Testdata,Arimatest)
+MAPEA_test = mean(abs(VecA2[,1]-VecA2[,2])/VecA2[,1]) 
+cat("MAPE Value of test data: ",MAPEA_test)
+
+```
+    
+    3. Lest PLot the actual and Forecast Values.
+    
+```{r echo=TRUE,fig.width=10}
+ts.plot(VecA2[,1],VecA2[,2], col=c("blue","red"),xlab="year", ylab="Production", main="Actual vs Forecast")
+legend("topleft", legend = c("Actual", "Forecast"), fill = c(4, 2), cex = .5, yjust = 0)
+```
+    
+    From above plot looks like our model is not performing exceptionally. Forecasted values are lower than actual.
+    
+***Step 9: *** Final Model with Entire Data: This model is goint ot be used to predict next 12 month values.We are going to use auto ARIMA here because this is going to generate model with best parameter.
+
+```{r echo=TRUE,fig.width=10}
+FinalModel = auto.arima(newgas, seasonal=TRUE)
+summary(FinalModel)
+tsdisplay(residuals(FinalModel),lag.max = 20,main = 'Seasonal model residuals of Final MOdel')
+```
+
+    
+***Step10 :*** Box-Ljung Test of Final Model:
+
+    This test is done to Check if the residuals are independent before using the model for forecasting.
+    
+    Null Hypothesis:H0: = Residuals are independent.
+    Alternate Hypothesis:Ha: = Residuals are not independent.
+    
+    p-value < 0.05 lets you reject of the null-hypothesis, but a p-value > 0.05 does not let you confirm the null-hypothesis.
+    
+```{r echo=TRUE}
+Box.test(FinalModel$residuals, type = c("Ljung-Box"))
+```
+    
+    From above result/p-value we can conclude that "Do not reject H0: Residuals are independent" so our Final model is valid.
+    
+***STEP 11: *** Predict Future 12 month Using final Model:
+
+
+```{r echo=TRUE,fig.width=10}
+forecast12 = forecast(FinalModel, h=12)
+forecast12
+plot(forecast12)
+
+```
+
+Above model shows first order nonseasonal differences, no seasonal autoregressive terms, and first order seasonal moving average terms with a lag component of twelvemonths. The forecasted monthly gas production is represented by blue line with 80 percent and 95 percent confidence intervals in dark gray and light gray respectively. This forecast shows a similar pattern developing in the next 12 months as gas production declines in the 5 months and then resumes previous high year end values at the end of 1996.
+
+## 6. Report the accuracy of the model:
+
+The models chosen manually and with auto.arima() are both in are equally good based on their AIC values. When AIC value and MAPE is critieria of chosing model then ensure that order of differencing is same . However, when comparing models using a test set, it does not matter how the forecasts were produced — the comparisons are always valid.
+
+***Auto Arima:***
+
+    1. Train Data:
+    
+```{r}
+VecA1 = cbind(fit2$fitted,fit2$x)
+MAPEA_train = mean(abs(VecA1[,1]-VecA1[,2])/VecA1[,1]) 
+cat("MAPE Value of Auto ARIMA train data: ",MAPEA_train)
+
+```
+    
+    2. Test Data:
+    
+```{r}
+Arimatest = forecast(fit2, h=20)
+VecA2 = cbind(Testdata,Arimatest)
+MAPEA_test = mean(abs(VecA2[,1]-VecA2[,2])/VecA2[,1]) 
+cat("MAPE Value of Auto ARIMA test data: ",MAPEA_test)
+
+```
+
+***Manual Arima:***
+
+    3. Train Data:
+
+```{r}
+VecA3 = cbind(fit1$fitted,fit1$x)
+MAPEA_train1 = mean(abs(VecA3[,1]-VecA3[,2])/VecA3[,1]) 
+cat("MAPE Value of Manual ARIMA train data: ",MAPEA_train1)
+
+```
+    
+    4. Test Data:
+    
+```{r}
+Arimatest1 = forecast(fit1, h=20)
+VecA4 = cbind(Testdata,Arimatest1)
+MAPEA_test1 = mean(abs(VecA4[,1]-VecA4[,2])/VecA4[,1]) 
+cat("MAPE Value of Manual ARIMA test data: ",MAPEA_test1)
+
+```
+    
+    5. From above results we can see that on Train data both the model is giving smilar MAPE value. But in test data Auto Arima is giving slightly better MAPE score. So mathematically we can say that our auto arima model is comparatively better.
+    
+
+***Insights and Recommendation:***
+
+    1. We can see that there is a different pattern till 1983 and after that different pattern in time series.Hence rather than considering dataset from 1970, probably a refined model should be built considering the period from 1980.
+    
+    2. We can use log transform of the dataset , as it gives better result.(In this case didnt make much difference).
+    
+    3. Arima model is giving ifferent paramter for Train data(1,1,1)(0,1,1) and original data(0,1,1)(0,1,2).
+    
+    4. 
